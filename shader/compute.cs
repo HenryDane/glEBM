@@ -2,16 +2,40 @@
 
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 
-layout(rgba32f, binding = 0) uniform image2D imgOutput;
+//layout(rgba32f, binding = 0) uniform image2D stateIn;
+//layout(rgba32f, binding = 1) uniform image2D stateOut;
+layout(rgba32f, binding = 0) uniform image2D stateOut;
 
 layout(location = 0) uniform float t;
+layout(location = 1) uniform float dt;
 
+// physical constants
 const float pi            =    3.14159265;
 const float days_per_year =  365.0f;
 const float S0            = 1367.0f;
+const float C_val         = 4184.0f;
+
+// orbital parameters
+const float ecc       =   0.01724f;
+const float obliquity =  23.45f;
+const float long_peri = 281.4f;
+
+// albedo parameters
+const float a0 =   0.3f;
+const float a2 =   0.078f;
+const float ai =   0.62f;
+const float Tf = 263.15f;
+
+// boltzmann parameters
+const float bm_A = 210.0f;
+const float bm_B =   2.0f;
 
 float deg2rad(float x) {
     return pi / 180.0f * x;
+}
+
+float calcP2(float x) {
+    return 0.5 * (3 * x * x - 1.0);
 }
 
 float solar_lon(float ecc, float long_peri_rad, float day) {
@@ -43,6 +67,16 @@ float instant_insol(float lat, float lon, float day, float ecc, float obliquity,
     return Fsw;
 }
 
+float calc_albedo(float Ts, float lat) {
+    float phi = deg2rad(lat);
+
+    return (Ts > Tf) ? a0 + a2 * calcP2(sin(phi)) : ai;
+}
+
+float calc_Ts(float albedo, float Q, float T_old) {
+    return (1 / C_val) * ((1 - albedo) * Q - (bm_A + bm_B * T_old));
+}
+
 void main() {
     vec4 value = vec4(0.0, 0.0, 0.0, 1.0);
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
@@ -51,11 +85,22 @@ void main() {
     float lat = (float(gl_GlobalInvocationID.y) / gl_NumWorkGroups.y * 180.0f) - 90.0f;
     float lon = (float(gl_GlobalInvocationID.x) / gl_NumWorkGroups.x * 360.0f);
 
-    float ecc = 0.01724f;
-    float obliquity = 23.45f;
-    float long_peri = 281.4f;
     float lambda_long = solar_lon(ecc, deg2rad(long_peri), day);
 
-    value.rgb = vec3(instant_insol(lat, lon, day, ecc, obliquity, lambda_long, long_peri) / S0);
-    imageStore(imgOutput, texelCoord, value);
+    // compute instant insolation
+    value.r = instant_insol(lat, lon, day, ecc, obliquity, lambda_long, long_peri);
+
+    // compute albedo
+    value.g = calc_albedo(270.0f, lat);
+
+    // compute temperature
+    if (t < 0.1) {
+        value.b = 273.15;
+    }
+    value.b = value.b + calc_Ts(value.g, value.r, value.b) * (dt * 86400.0);
+
+    // placeholder
+    value.a = 0.0f;
+
+    imageStore(stateOut, texelCoord, value);
 }

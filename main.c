@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include "common.h"
+#include "profile.h"
 
 // https://learnopengl.com/Guest-Articles/2022/Compute-Shaders/Introduction
 // https://medium.com/@daniel.coady/compute-shaders-in-opengl-4-3-d1c741998c03
@@ -60,6 +61,9 @@ int main() {
     glEnable(GL_DEBUG_OUTPUT);
     glDebugMessageCallback(messageCallback, 0);
 
+    profile_t profldat;
+    init_profile(&profldat);
+
     // query limitations
     int max_compute_work_group_count[3];
     int max_compute_work_group_size[3];
@@ -97,17 +101,17 @@ int main() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 
     // create 2d texture
-    unsigned int state_texture;
-    glGenTextures(1, &state_texture);
-    glBindTexture(GL_TEXTURE_2D, state_texture);
+    unsigned int surf_texture;
+    glGenTextures(1, &surf_texture);
+    glBindTexture(GL_TEXTURE_2D, surf_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
-    glBindImageTexture(0, state_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+    glBindImageTexture(0, surf_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, state_texture);
+    glBindTexture(GL_TEXTURE_2D, surf_texture);
 
     // make shaders
     unsigned int compute_shader = create_cshader("shader/compute.cs");
@@ -119,12 +123,7 @@ int main() {
 
     // figure out compute shader stuff
     unsigned int css_t_l = glGetUniformLocation(compute_shader, "t");
-
-    // timing stuff
-    const int N_TIMING_SAMPLES = 1000;
-    int profiling_state = 0;
-    float dts[N_TIMING_SAMPLES];
-    for (size_t i = 0; i < N_TIMING_SAMPLES; dts[i++] = 0.0f);
+    unsigned int css_dt_l = glGetUniformLocation(compute_shader, "dt");
 
     // process window/graphics
     float currentFrame, delta, tlast = 0.0f;
@@ -135,18 +134,10 @@ int main() {
         delta = currentFrame - tlast;
         tlast = currentFrame;
 
-        if (profiling_state >= 0 && profiling_state < N_TIMING_SAMPLES && frame_ctr > 120) {
-            dts[profiling_state] = delta;
-            profiling_state++;
-
-            if (profiling_state >= N_TIMING_SAMPLES) {
-                profiling_state = -1;
-            }
-        }
-
         // dispatch compute shader
         glUseProgram(compute_shader);
         glUniform1f(css_t_l, currentFrame);
+        glUniform1f(css_dt_l, delta);
         glDispatchCompute((unsigned int)SCR_WIDTH, (unsigned int)SCR_HEIGHT, 1);
 
         // make sure writing to image has finished before read
@@ -157,7 +148,7 @@ int main() {
         glUseProgram(screen_shader);
         glUniform1i(glGetUniformLocation(screen_shader, "tex"), 0);
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, state_texture);
+        glBindTexture(GL_TEXTURE_2D, surf_texture);
         glBindVertexArray(quadVAO);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         glBindVertexArray(0);
@@ -166,29 +157,10 @@ int main() {
         glfwSwapBuffers(window);
         glfwPollEvents();
 
-        // frame time
-        if (profiling_state == -1) {
-            profiling_state = -2;
+        // update profiling
+        tick_profile(&profldat, delta, frame_ctr);
 
-            float max = 0.0f;
-            float min = 10000.0f;
-            float mean = 0.0f;
-            for (size_t i = 0; i < N_TIMING_SAMPLES; i++) {
-                if (dts[i] < min) {
-                    min = dts[i];
-                }
-                if (dts[i] > max) {
-                    max = dts[i];
-                }
-                mean += dts[i];
-            }
-            mean = mean / ((float) N_TIMING_SAMPLES) * 1000.0f;
-            min *= 1000.0f;
-            max *= 1000.0f;
-
-            printf("mean=%.3f min=%.3f max=%.3f\n", mean, min, max);
-        }
-
+        // frame counter
         frame_ctr++;
     }
 
