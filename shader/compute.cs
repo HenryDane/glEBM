@@ -57,6 +57,5 @@ void main() {
     float lambda_long = solar_lon(ecc, deg2rad(long_peri), day);
 
     value.rgb = vec3(instant_insol(lat, lon, day, ecc, obliquity, lambda_long, long_peri) / S0);
-//    value.rgb = vec3((lat + 90) / 180.0f, lon / 360.0f, 0.0);
     imageStore(imgOutput, texelCoord, value);
 }
