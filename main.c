@@ -109,7 +109,6 @@ int main() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
     glBindImageTexture(0, state_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-
     glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, state_texture);
 
@@ -124,6 +123,12 @@ int main() {
     // figure out compute shader stuff
     unsigned int css_t_l = glGetUniformLocation(compute_shader, "t");
 
+    // timing stuff
+    const int N_TIMING_SAMPLES = 1000;
+    int profiling_state = 0;
+    float dts[N_TIMING_SAMPLES];
+    for (size_t i = 0; i < N_TIMING_SAMPLES; dts[i++] = 0.0f);
+
     // process window/graphics
 	float currentFrame, delta, tlast = 0.0f;
 	while (!glfwWindowShouldClose(window)) {
@@ -131,6 +136,15 @@ int main() {
         float currentFrame = glfwGetTime();
 		delta = currentFrame - tlast;
 		tlast = currentFrame;
+
+		if (profiling_state >= 0 && profiling_state < N_TIMING_SAMPLES) {
+            dts[profiling_state] = delta;
+            profiling_state++;
+
+            if (profiling_state >= N_TIMING_SAMPLES) {
+                profiling_state = -1;
+            }
+		}
 
 		// dispatch compute shader
 		glUseProgram(compute_shader);
@@ -154,7 +168,28 @@ int main() {
         glfwSwapBuffers(window);
 		glfwPollEvents();
 
-		printf("dt=%.4f ms\n", delta * 1000);
+		// frame time
+		if (profiling_state == -1) {
+            profiling_state = -2;
+
+            float max = 0.0f;
+            float min = 10000.0f;
+            float mean = 0.0f;
+            for (size_t i = 0; i < N_TIMING_SAMPLES; i++) {
+                if (dts[i] < min) {
+                    min = dts[i];
+                }
+                if (dts[i] > max) {
+                    max = dts[i];
+                }
+                mean += dts[i];
+            }
+            mean = mean / ((float) N_TIMING_SAMPLES) * 1000.0f;
+            min *= 1000.0f;
+            max *= 1000.0f;
+
+            printf("mean=%.3f min=%.3f max=%.3f\n", mean, min, max);
+		}
 	}
 
 	glfwTerminate();
