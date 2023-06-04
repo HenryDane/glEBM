@@ -128,6 +128,7 @@ int main() {
     // process window/graphics
     float currentFrame, delta, tlast = 0.0f;
     int frame_ctr = 0;
+    float speed = 10.0f;
     while (!glfwWindowShouldClose(window)) {
         // compute frame time
         float currentFrame = glfwGetTime();
@@ -136,8 +137,8 @@ int main() {
 
         // dispatch compute shader
         glUseProgram(compute_shader);
-        glUniform1f(css_t_l, currentFrame);
-        glUniform1f(css_dt_l, delta);
+        glUniform1f(css_t_l, currentFrame * speed);
+        glUniform1f(css_dt_l, delta * speed);
         glDispatchCompute((unsigned int)SCR_WIDTH, (unsigned int)SCR_HEIGHT, 1);
 
         // make sure writing to image has finished before read

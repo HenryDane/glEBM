@@ -13,7 +13,7 @@ layout(location = 1) uniform float dt;
 const float pi            =    3.14159265;
 const float days_per_year =  365.0f;
 const float S0            = 1367.0f;
-const float C_val         = 4184.0f;
+const float C_val         =    4.0e6f;
 
 // orbital parameters
 const float ecc       =   0.01724f;
@@ -74,12 +74,13 @@ float calc_albedo(float Ts, float lat) {
 }
 
 float calc_Ts(float albedo, float Q, float T_old) {
-    return (1 / C_val) * ((1 - albedo) * Q - (bm_A + bm_B * T_old));
+    return (1 / C_val) * (((1 - albedo) * Q) - (bm_A + bm_B * T_old));
 }
 
 void main() {
-    vec4 value = vec4(0.0, 0.0, 0.0, 1.0);
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
+    vec4 value = imageLoad(stateOut, texelCoord);
+    value *= vec4(0.0, 0.0, 1.0, 0.0);
 
     float day = t;
     float lat = (float(gl_GlobalInvocationID.y) / gl_NumWorkGroups.y * 180.0f) - 90.0f;
