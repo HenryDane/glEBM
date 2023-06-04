@@ -122,15 +122,23 @@ int main() {
     // configure screen shader
     glUseProgram(screen_shader);
     glUniform1i(glGetUniformLocation(screen_shader, "tex"), 0);
+    unsigned int ss_tmax_l = glGetUniformLocation(screen_shader, "Tmax");
+    unsigned int ss_tmin_l = glGetUniformLocation(screen_shader, "Tmin");
 
     // figure out compute shader stuff
     unsigned int css_t_l = glGetUniformLocation(compute_shader, "t");
     unsigned int css_dt_l = glGetUniformLocation(compute_shader, "dt");
 
-    // process window/graphics
+    // timing state info
     float currentFrame, delta, tlast = 0.0f;
     int frame_ctr = 0;
-    float speed = 1.0f; // 1s -> 1 day
+    float speed = 100.0f; // 1s -> 1 day
+
+    // state info
+    float Tmin = 200.0f;
+    float Tmax = 300.0f;
+
+    // process window/graphics
     while (!glfwWindowShouldClose(window)) {
         // compute frame time
         float currentFrame = glfwGetTime();
@@ -150,6 +158,8 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(screen_shader);
         glUniform1i(glGetUniformLocation(screen_shader, "tex"), 0);
+        glUniform1f(ss_tmax_l, Tmax);
+        glUniform1f(ss_tmin_l, Tmin);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, surf_texture);
         glBindVertexArray(quadVAO);
@@ -162,6 +172,16 @@ int main() {
 
         // update profiling
         tick_profile(&profldat, delta, frame_ctr);
+
+        // collect statistics
+        if (frame_ctr % 500 == 0) {
+#ifndef REDUCED_OUTPUT
+            printf("fc=%d t=%.4edays \n", frame_ctr, currentFrame * speed);
+#else
+            printf("%.4e ", currentFrame * speed);
+#endif // REDUCED_OUTPUT
+            fetch_2d_state(surf_texture, SCR_WIDTH, SCR_HEIGHT, &Tmax, &Tmin);
+        }
 
         // frame counter
         frame_ctr++;

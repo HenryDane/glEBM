@@ -7,4 +7,6 @@
 #define SCR_WIDTH  512
 #define SCR_HEIGHT 512
 
+//#define REDUCED_OUTPUT
+
 #endif // _COMMON_H

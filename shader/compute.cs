@@ -13,7 +13,8 @@ layout(location = 1) uniform float dt;
 const float pi            =    3.14159265;
 const float days_per_year =  365.0f;
 const float S0            = 1367.0f;
-const float C_val         =    4.0e7f;
+const float C_val         = (4e3) * (1e3) * (10.0); // 10m of water
+const float sigma         = 5.67e-8f;
 
 // orbital parameters
 const float ecc       =   0.01724f;
@@ -29,6 +30,7 @@ const float Tf = 263.15f;
 // boltzmann parameters
 const float bm_A = 210.0f;
 const float bm_B =   2.0f;
+const float tau  =   0.61f;
 
 float deg2rad(float x) {
     return pi / 180.0f * x;
@@ -63,6 +65,7 @@ float instant_insol(float lat, float lon, float day, float ecc, float obliquity,
     float b1 = (1+ecc*cos(lambda_long - deg2rad(long_peri)));
     float b2 = b1 * b1;
     float Fsw = (abs(h) < Ho) ? S0*( b2 / a2 * coszen) : 0.0f;
+    Fsw = (Fsw > 0.0f) ? Fsw : 0.0f;
 
     return Fsw;
 }
@@ -74,7 +77,7 @@ float calc_albedo(float Ts, float lat) {
 }
 
 float calc_Ts(float albedo, float Q, float T_old) {
-    return (1 / C_val) * (((1 - albedo) * Q) - (bm_A + bm_B * T_old));
+    return (((1 - albedo) * Q) - (tau * sigma * T_old * T_old * T_old * T_old)) / C_val;
 }
 
 void main() {
@@ -95,9 +98,6 @@ void main() {
     value.g = calc_albedo(value.b, lat);
 
     // compute temperature
-    if (t < 0.1) {
-        value.b = 273.15;
-    }
     value.b = value.b + calc_Ts(value.g, value.r, value.b) * (dt * 86400.0);
 
     // placeholder
