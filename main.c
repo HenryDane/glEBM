@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include "common.h"
 #include "profile.h"
+#include "initial.h"
 
 // https://learnopengl.com/Guest-Articles/2022/Compute-Shaders/Introduction
 // https://medium.com/@daniel.coady/compute-shaders-in-opengl-4-3-d1c741998c03
@@ -101,6 +102,7 @@ int main() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 
     // create 2d texture
+    float* data = make_2d_initial(SCR_WIDTH, SCR_HEIGHT);
     unsigned int surf_texture;
     glGenTextures(1, &surf_texture);
     glBindTexture(GL_TEXTURE_2D, surf_texture);
@@ -108,7 +110,7 @@ int main() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, data);
     glBindImageTexture(0, surf_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, surf_texture);
@@ -128,7 +130,7 @@ int main() {
     // process window/graphics
     float currentFrame, delta, tlast = 0.0f;
     int frame_ctr = 0;
-    float speed = 10.0f;
+    float speed = 1.0f; // 1s -> 1 day
     while (!glfwWindowShouldClose(window)) {
         // compute frame time
         float currentFrame = glfwGetTime();

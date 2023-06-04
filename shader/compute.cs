@@ -13,7 +13,7 @@ layout(location = 1) uniform float dt;
 const float pi            =    3.14159265;
 const float days_per_year =  365.0f;
 const float S0            = 1367.0f;
-const float C_val         =    4.0e6f;
+const float C_val         =    4.0e7f;
 
 // orbital parameters
 const float ecc       =   0.01724f;
@@ -92,7 +92,7 @@ void main() {
     value.r = instant_insol(lat, lon, day, ecc, obliquity, lambda_long, long_peri);
 
     // compute albedo
-    value.g = calc_albedo(270.0f, lat);
+    value.g = calc_albedo(value.b, lat);
 
     // compute temperature
     if (t < 0.1) {
