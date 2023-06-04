@@ -58,3 +58,20 @@ $$
  - coords(x, y, z) - Actual coordinate information (lat, lon, lev) at that spot.
  - $V(x, y, z)$ - The volume of the grid cell.
 
+**Program struture**
+
+`state_texture` has shape (lon,lat,lev) and contents (T, q, ?, ?) and is `RGBA32F`.
+
+`surf_texture` has shape (lon, lat) and contents (Q, albedo, Ts, ?) and is `RGBA32F`.
+
+Update process is:
+ - update `surf_texture` into `tmp`
+ - swap `tmp` --> `surf_texture`
+ - (TODO) update `state_texture` somehow
+ - render surf temp
+ 
+ 
+
+
+
+
