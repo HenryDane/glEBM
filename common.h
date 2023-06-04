@@ -9,4 +9,10 @@
 
 //#define REDUCED_OUTPUT
 
+float deg2rad(float x);
+void mmm(float x, float* min, float* max, float* mean);
+
+// physical constants
+extern const float pi, days_per_year, S0, ecc, obliquity, long_peri;
+
 #endif // _COMMON_H

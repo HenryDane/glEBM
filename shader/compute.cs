@@ -5,6 +5,7 @@ layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 //layout(rgba32f, binding = 0) uniform image2D stateIn;
 //layout(rgba32f, binding = 1) uniform image2D stateOut;
 layout(rgba32f, binding = 0) uniform image2D stateOut;
+layout(binding = 1) uniform sampler2D insol_LUT;
 
 layout(location = 0) uniform float t;
 layout(location = 1) uniform float dt;
@@ -40,34 +41,16 @@ float calcP2(float x) {
     return 0.5 * (3 * x * x - 1.0);
 }
 
-float solar_lon(float ecc, float long_peri_rad, float day) {
-    float delta_lambda = (day - 80.) * 2*pi/days_per_year;
-    float ecc2 = ecc * ecc;
-    float ecc3 = ecc2 * ecc;
-    float beta = sqrt(1 - ecc2);
-    float lambda_long_m = -2*((ecc/2 + (ecc3)/8 ) * (1+beta) * sin(-long_peri_rad) -
-        (ecc2)/4 * (1/2 + beta) * sin(-2*long_peri_rad) + (ecc3)/8 *
-        (1/3 + beta) * sin(-3*long_peri_rad)) + delta_lambda;
-    float lambda_long = ( lambda_long_m + (2*ecc - (ecc3)/4)*sin(lambda_long_m - long_peri_rad) +
-        (5/4)*(ecc2) * sin(2*(lambda_long_m - long_peri_rad)) + (13/12)*(ecc3)
-        * sin(3*(lambda_long_m - long_peri_rad)) );
-    return lambda_long;
-}
+float calc_Q(float lat, float lon, float day) {
+    vec2 coord  = vec2(day / 365.0f, (lat + 90.0f) / 180.0f);
+    vec4 soldat = texture(insol_LUT, coord); // solar_lon, S0*b2/a2, H0, delta
 
-float instant_insol(float lat, float lon, float day, float ecc, float obliquity, float lambda_long, float long_peri) {
-    float phi = deg2rad(lat);
-    float delta = asin(sin(deg2rad(obliquity)) * sin(lambda_long));
-    float h = (mod((mod(day, 1.0) + (lon / 360)), 1.0) - 0.5) * 2 * pi;
-    float Ho = abs(delta)-pi/2+abs(phi) < 0 ? acos(-tan(phi)*tan(delta)) : (phi*delta>0. ? pi : 0.0f);
-    float coszen = sin(phi)*sin(delta) + cos(phi)*cos(delta)*cos(h);
-    float a1 = (1-ecc*ecc);
-    float a2 = a1 * a1;
-    float b1 = (1+ecc*cos(lambda_long - deg2rad(long_peri)));
-    float b2 = b1 * b1;
-    float Fsw = (abs(h) < Ho) ? S0*( b2 / a2 * coszen) : 0.0f;
-    Fsw = (Fsw > 0.0f) ? Fsw : 0.0f;
+    float phi    = deg2rad(lat);
+    float h      = (mod((mod(day, 1.0) + (lon / 360)), 1.0) - 0.5) * 2 * pi;
+    float coszen = sin(phi)*sin(soldat.a) + cos(phi)*cos(soldat.a)*cos(h);
+    float Fsw    = (abs(h) < soldat.b) ? soldat.g * coszen : 0.0f;
 
-    return Fsw;
+    return clamp(Fsw, 0.0f, S0);
 }
 
 float calc_albedo(float Ts, float lat) {
@@ -89,10 +72,8 @@ void main() {
     float lat = (float(gl_GlobalInvocationID.y) / gl_NumWorkGroups.y * 180.0f) - 90.0f;
     float lon = (float(gl_GlobalInvocationID.x) / gl_NumWorkGroups.x * 360.0f);
 
-    float lambda_long = solar_lon(ecc, deg2rad(long_peri), day);
-
     // compute instant insolation
-    value.r = instant_insol(lat, lon, day, ecc, obliquity, lambda_long, long_peri);
+    value.r = calc_Q(lat, lon, day);
 
     // compute albedo
     value.g = calc_albedo(value.b, lat);

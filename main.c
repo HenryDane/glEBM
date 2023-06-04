@@ -4,6 +4,8 @@
 #include "common.h"
 #include "profile.h"
 #include "initial.h"
+#include "fetch.h"
+#include "renderutil.h"
 
 // https://learnopengl.com/Guest-Articles/2022/Compute-Shaders/Introduction
 // https://medium.com/@daniel.coady/compute-shaders-in-opengl-4-3-d1c741998c03
@@ -101,7 +103,7 @@ int main() {
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 
-    // create 2d texture
+    // create 2d state texture
     float* data = make_2d_initial(SCR_WIDTH, SCR_HEIGHT);
     unsigned int surf_texture;
     glGenTextures(1, &surf_texture);
@@ -112,8 +114,12 @@ int main() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, data);
     glBindImageTexture(0, surf_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, surf_texture);
+//    glActiveTexture(GL_TEXTURE0);
+//    glBindTexture(GL_TEXTURE_2D, surf_texture);
+//    glBindTexture(0);
+
+    // create solar LUT texture
+    unsigned int solat_LUT = make_solar_table();
 
     // make shaders
     unsigned int compute_shader = create_cshader("shader/compute.cs");
@@ -126,17 +132,24 @@ int main() {
     unsigned int ss_tmin_l = glGetUniformLocation(screen_shader, "Tmin");
 
     // figure out compute shader stuff
-    unsigned int css_t_l = glGetUniformLocation(compute_shader, "t");
-    unsigned int css_dt_l = glGetUniformLocation(compute_shader, "dt");
+    unsigned int css_t_l         = glGetUniformLocation(compute_shader, "t");
+    unsigned int css_dt_l        = glGetUniformLocation(compute_shader, "dt");
+    unsigned int css_insol_LUT_l = glGetUniformLocation(compute_shader, "insol_LUT");
 
     // timing state info
     float currentFrame, delta, tlast = 0.0f;
     int frame_ctr = 0;
-    float speed = 100.0f; // 1s -> 1 day
+    float speed = 1.0f; // 1s -> 1 day
 
     // state info
     float Tmin = 200.0f;
     float Tmax = 300.0f;
+
+    // bind textures
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, surf_texture);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, solat_LUT);
 
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {
@@ -149,6 +162,7 @@ int main() {
         glUseProgram(compute_shader);
         glUniform1f(css_t_l, currentFrame * speed);
         glUniform1f(css_dt_l, delta * speed);
+        glUniform1i(css_insol_LUT_l, 1);
         glDispatchCompute((unsigned int)SCR_WIDTH, (unsigned int)SCR_HEIGHT, 1);
 
         // make sure writing to image has finished before read
@@ -182,6 +196,8 @@ int main() {
 #endif // REDUCED_OUTPUT
             fetch_2d_state(surf_texture, SCR_WIDTH, SCR_HEIGHT, &Tmax, &Tmin);
         }
+
+        if (frame_ctr > 10125) break;
 
         // frame counter
         frame_ctr++;
