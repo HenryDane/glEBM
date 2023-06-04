@@ -18,7 +18,7 @@ void main() {
 //    value.b = float(value.b > 263.15);
     value.b = (value.b - Tmin) / (Tmax - Tmin);
 
-//    FragColor = vec4(vec3(value.b), 1.0);
-    FragColor = vec4(vec3(value.r), 1.0);
+    FragColor = vec4(vec3(value.b), 1.0);
+//    FragColor = vec4(vec3(value.r), 1.0);
 //    FragColor = vec4(value, 1.0);
 }

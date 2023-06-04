@@ -143,7 +143,7 @@ int main() {
 
     // state info
     float Tmin = 200.0f;
-    float Tmax = 300.0f;
+    float Tmax = 350.0f;
 
     // bind textures
     glActiveTexture(GL_TEXTURE0);
@@ -196,8 +196,6 @@ int main() {
 #endif // REDUCED_OUTPUT
             fetch_2d_state(surf_texture, SCR_WIDTH, SCR_HEIGHT, &Tmax, &Tmin);
         }
-
-        if (frame_ctr > 10125) break;
 
         // frame counter
         frame_ctr++;
