@@ -190,7 +190,8 @@ int main() {
         // collect statistics
         if (frame_ctr % 500 == 0) {
 #ifndef REDUCED_OUTPUT
-            printf("fc=%d t=%.4edays \n", frame_ctr, currentFrame * speed);
+            printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
+                currentFrame * speed, delta * speed * 24.0f * 60.0f, 1.0f / delta);
 #else
             printf("%.4e ", currentFrame * speed);
 #endif // REDUCED_OUTPUT
