@@ -3,12 +3,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-void mmm(float x, float* min, float* max, float* mean) {
-    if (x < *min) *min = x;
-    if (x > *max) *max = x;
-    *mean += x;
-}
-
 void fetch_2d_state(unsigned int texture, int nx, int ny, float* Tmax,
     float* Tmin) {
     // create a buffer
@@ -39,9 +33,9 @@ void fetch_2d_state(unsigned int texture, int nx, int ny, float* Tmax,
 
     // explore texture
     for (size_t i = 0; i < nx * ny; i++) {
-        mmm(data[(i*4) + 0], &Qmin, &Qmax, &Qmean);
-        mmm(data[(i*4) + 1], &amin, &amax, &amean);
-        mmm(data[(i*4) + 2], Tmin, Tmax, &Tmean);
+        mmm(data[(i * 4) + 0], &Qmin, &Qmax, &Qmean);
+        mmm(data[(i * 4) + 1], &amin, &amax, &amean);
+        mmm(data[(i * 4) + 2], Tmin, Tmax, &Tmean);
 //        mmm(data[(i*4) + 3], &dtmin, &dtmax, &dtmean);
     }
 

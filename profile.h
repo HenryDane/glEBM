@@ -1,7 +1,7 @@
 #ifndef _PROFILE_H
 #define _PROFILE_H
 
-#define N_TIMING_SAMPLES 1000
+#define N_TIMING_SAMPLES 10000
 
 typedef struct {
     int profiling_state;
