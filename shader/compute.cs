@@ -67,25 +67,32 @@ float calc_Ts(float albedo, float Q, float T_old) {
 }
 
 vec4 calc_adv_diff(vec4 S, ivec2 tcoord, float lat) {
+    // define diffusivities for temp and humidity
     const vec4 Kxx = vec4(1.0, 1.0, 0.0, 0.0);
     const vec4 Kyy = vec4(1.0, 1.0, 0.0, 0.0);
 
+    // calculate dx, dy
     float dx = 2.0f * pi * Re * cos(deg2rad(lat)) / gl_NumWorkGroups.x; // lon
     float dy = 2.0f * pi * Re * cos(deg2rad(lat)) / gl_NumWorkGroups.y; // lat
 
+    // fix numerical instability
+    dx = clamp(dx, 1e-3, 1e5);
+    dy = clamp(dy, 1e-3, 1e5);
+
+    // get neighboring states
     vec4 Sipj = imageLoad(stateOut, tcoord + ivec2( 1,  0));
     vec4 Simj = imageLoad(stateOut, tcoord + ivec2(-1,  0));
     vec4 Sijp = imageLoad(stateOut, tcoord + ivec2( 0,  1));
     vec4 Sijm = imageLoad(stateOut, tcoord + ivec2( 0, -1));
 
+    // compute dN/dt
     vec4 dNdt = vec4(0);
-    dNdt = dNdt + ((Sipj * Sipj.bbbb - Simj * Simj.bbbb) / (2 * dx));
-    dNdt = dNdt + ((Sijp * Sijp.aaaa - Sijm * Sijm.aaaa) / (2 * dy));
+    dNdt = dNdt + ((Sipj * Sipj.aaaa - Simj * Simj.aaaa) / (2.0 * dx));
+    dNdt = dNdt + ((Sijp * Sijp.bbbb - Sijm * Sijm.bbbb) / (2.0 * dy));
 //    dNdt = dNdt - ((Simj - (2.0f * S) + Sipj) * (Kxx / (dx * dx)));
 //    dNdt = dNdt - ((Sijm - (2.0f * S) + Sijp) * (Kyy / (dy * dy)));
 
     return dNdt;
-//    return vec4(dx, dy, 0.0, 0.0);
 }
 
 void main() {
@@ -93,7 +100,6 @@ void main() {
     // Ts, q, u, v
     //  r, g, b, a
     vec4 value = imageLoad(stateOut, texelCoord);
-//    value *= vec4(1.0, 0.0, 0.0, 0.0);
 
     // coordinates
     float day = t;
@@ -102,10 +108,6 @@ void main() {
 
     // pressure
     // float Pa = NA * kB * value.r; // (2.22)
-
-    // calculate advdiff
-    value.rg += (calc_adv_diff(value, texelCoord, lat) * dt * secs_per_day).rg;
-//    value = calc_adv_diff(value, texelCoord, lat);
 
     // compute instant insolation
     float Q = calc_Q(lat, lon, day);
@@ -118,14 +120,14 @@ void main() {
 
     // compute wind
     float f = 2.0f * omega * sin(deg2rad(lat)); // (4.35)
-    float tphiRe  = value.b * clamp(tan(deg2rad(lat)), -1e6, 1e6) / Re;
+    float tphiRe  = value.b * clamp(tan(deg2rad(lat)), -1e2, 1e6) / Re;
     float dudt    = value.a * tphiRe + (f * value.a);  // (4.76) trunc.
     float dvdt    = -value.b * tphiRe - (f * value.b); // (4.77) trunc.
     value.b = value.b + (dudt * dt * secs_per_day);
     value.a = value.a + (dvdt * dt * secs_per_day);
 
-    // placeholder
-    value.a = 0.0f;
+//    // calculate advdiff
+    value.rg += (calc_adv_diff(value, texelCoord, lat) * dt * secs_per_day).rg;
 
     imageStore(stateOut, texelCoord, value);
 }

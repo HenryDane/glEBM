@@ -139,7 +139,7 @@ int main() {
     // timing state info
     float currentFrame, delta, tlast = 0.0f;
     int frame_ctr = 0;
-    float speed = 10.0f; // 1s -> 1 day
+    float speed = 1.0f; // 1s -> 1 day
 
     // state info
 //    float Tmin = 272.0f; float qmin = 0; float umin = 0; float vmin = 0;
