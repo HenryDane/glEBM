@@ -9,10 +9,10 @@ float* make_2d_initial(int nx, int ny) {
     float* data = (float*) malloc(nx * ny * 4 * sizeof(float));
 
     for (size_t i = 0; i < nx * ny; i++) {
-        data[(i * 4) + 0] =   0.0f; // insolation
-        data[(i * 4) + 1] =   0.1f; // albedo
-        data[(i * 4) + 2] = 273.15f; // temperature
-        data[(i * 4) + 3] =   1.0e9f; // unused
+        data[(i * 4) + 0] = 273.15f; // insolation
+        data[(i * 4) + 1] =   0.0f;  // vapor mmr
+        data[(i * 4) + 2] =   0.05f;  // meridional wind
+        data[(i * 4) + 3] =   0.05f;  // zonal wind
     }
 
     return data;

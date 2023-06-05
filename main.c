@@ -128,8 +128,8 @@ int main() {
     // configure screen shader
     glUseProgram(screen_shader);
     glUniform1i(glGetUniformLocation(screen_shader, "tex"), 0);
-    unsigned int ss_tmax_l = glGetUniformLocation(screen_shader, "Tmax");
-    unsigned int ss_tmin_l = glGetUniformLocation(screen_shader, "Tmin");
+    unsigned int ss_maxs_l = glGetUniformLocation(screen_shader, "maxs");
+    unsigned int ss_mins_l = glGetUniformLocation(screen_shader, "mins");
 
     // figure out compute shader stuff
     unsigned int css_t_l         = glGetUniformLocation(compute_shader, "t");
@@ -139,11 +139,13 @@ int main() {
     // timing state info
     float currentFrame, delta, tlast = 0.0f;
     int frame_ctr = 0;
-    float speed = 1.0f; // 1s -> 1 day
+    float speed = 10.0f; // 1s -> 1 day
 
     // state info
-    float Tmin = 200.0f;
-    float Tmax = 350.0f;
+//    float Tmin = 272.0f; float qmin = 0; float umin = 0; float vmin = 0;
+    float Tmin = 1e9; float qmin = 1e9; float umin = 0; float vmin = 0;
+//    float Tmax = 275.0f; float qmax = 1; float umax = 0; float vmax = 0;
+    float Tmax = -1e9; float qmax = -1e9; float umax = 0; float vmax = 0;
 
     // bind textures
     glActiveTexture(GL_TEXTURE0);
@@ -172,8 +174,8 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(screen_shader);
         glUniform1i(glGetUniformLocation(screen_shader, "tex"), 0);
-        glUniform1f(ss_tmax_l, Tmax);
-        glUniform1f(ss_tmin_l, Tmin);
+        glUniform4f(ss_maxs_l, Tmax, qmax, umax, vmax);
+        glUniform4f(ss_mins_l, Tmin, qmin, umin, vmin);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, surf_texture);
         glBindVertexArray(quadVAO);
@@ -195,7 +197,8 @@ int main() {
 #else
             printf("%.4e ", currentFrame * speed);
 #endif // REDUCED_OUTPUT
-            fetch_2d_state(surf_texture, SCR_WIDTH, SCR_HEIGHT, &Tmax, &Tmin);
+            fetch_2d_state(surf_texture, SCR_WIDTH, SCR_HEIGHT, &Tmax, &Tmin,
+                &qmax, &qmin, &umax, &umin, &vmax, &vmin);
         }
 
         // frame counter
