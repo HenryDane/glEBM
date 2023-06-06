@@ -15,7 +15,7 @@ const float pi            =    3.14159265;
 const float days_per_year =  365.0f;
 const float secs_per_day  = 86400.0f;
 const float S0            = 1367.0f;
-const float C_val         = (4e3) * (1e3) * (10.0); // 10m of water
+//const float C_val         = (4e3) * (1e3) * (10.0); // 10m of water
 const float sigma         = 5.67e-8f;
 const float Re            = 6.378e6f;
 const float omega         = 7.292e-5;
@@ -44,6 +44,10 @@ float calcP2(float x) {
     return 0.5 * (3 * x * x - 1.0);
 }
 
+float calc_Cval(float d) {
+    return (4e3) * (1e3) * d;
+}
+
 float calc_Q(float lat, float lon, float day) {
     vec2 coord  = vec2(day / 365.0f, (lat + 90.0f) / 180.0f);
     vec4 soldat = texture(insol_LUT, coord); // solar_lon, S0*b2/a2, H0, delta
@@ -62,7 +66,11 @@ float calc_albedo(float Ts, float lat) {
     return (Ts > Tf) ? a0 + a2 * calcP2(sin(phi)) : ai;
 }
 
-float calc_Ts(float albedo, float Q, float T_old) {
+float calc_Ts(float lat, float lon, float albedo, float Q, float T_old) {
+    float C_coef = float(lat > 10) * float(lat < 25) * float(lon > 100) * float(lon < 200);
+    float alb = albedo + 0.7 * C_coef;
+    float C_val = calc_Cval(mix(30.0, 1.0, C_coef));
+
     return (((1 - albedo) * Q) - (tau * sigma * T_old * T_old * T_old * T_old)) / C_val;
 }
 
@@ -134,7 +142,7 @@ void main() {
     float alpha = calc_albedo(value.r, lat);
 
     // compute temperature
-    value.r = value.r + calc_Ts(alpha, Q, value.r) * (dt * secs_per_day);
+    value.r = value.r + calc_Ts(lat, lon, alpha, Q, value.r) * (dt * secs_per_day);
 
     // compute wind
 //    float f = 2.0f * omega * sin(deg2rad(lat)); // (4.35)
@@ -145,8 +153,8 @@ void main() {
 //    value.a = value.a + (dvdt * dt * secs_per_day);
 
     // calculate advdiff
-    vec4 advdiff = calc_adv_diff(value, texelCoord, lat);
-    value.rg += (advdiff.rg * dt * secs_per_day) * dt * secs_per_day;
+//    vec4 advdiff = calc_adv_diff(value, texelCoord, lat);
+//    value.rg += (advdiff.rg * dt * secs_per_day) * dt * secs_per_day;
 //    value.ba = advdiff.ba;
 
     imageStore(stateOut, texelCoord, value);
