@@ -143,9 +143,9 @@ int main() {
 
     // state info
 //    float Tmin = 272.0f; float qmin = 0; float umin = 0; float vmin = 0;
-    float Tmin = 1e9; float qmin = 1e9; float umin = 0; float vmin = 0;
+    float Tmin = 272.0f; float qmin = 1e9; float umin = 0; float vmin = 0;
 //    float Tmax = 275.0f; float qmax = 1; float umax = 0; float vmax = 0;
-    float Tmax = -1e9; float qmax = -1e9; float umax = 0; float vmax = 0;
+    float Tmax = 275.0f; float qmax = -1e9; float umax = 0; float vmax = 0;
 
     // bind textures
     glActiveTexture(GL_TEXTURE0);

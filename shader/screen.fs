@@ -14,8 +14,11 @@ void main() {
 
     value = (value - mins) / (maxs - mins);
 
-//    FragColor = vec4(vec3(value.r), 1.0);
-    FragColor = vec4(vec3(value.a), 1.0);
-    FragColor = (isnan(value.a) ? vec4(1.0, 0.0, 0.0, 0.0) : FragColor);
+    FragColor = vec4(vec3(value.r), 1.0);
+//    FragColor = vec4(vec3(value.a), 1.0);
+//    FragColor = vec4(1 - value.a, 0.0, 0.0, 1.0);
+//    FragColor = vec4(1 - value.b, 0.0, 0.0, 1.0);
+//    FragColor = vec4(vec3(value.b, value.a, 0.0), 1.0);
+//    FragColor = (isnan(value.a) ? vec4(1.0, 0.0, 0.0, 0.0) : FragColor);
 //    FragColor = vec4(value.r / 39135.0f, value.g / 39135.0f, 0.0f, 1.0);
 }

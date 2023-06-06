@@ -66,33 +66,43 @@ float calc_Ts(float albedo, float Q, float T_old) {
     return (((1 - albedo) * Q) - (tau * sigma * T_old * T_old * T_old * T_old)) / C_val;
 }
 
+vec4 safeRead(ivec2 coord) {
+    ivec2 imgsize = imageSize(stateOut);
+    float iimj = 1.0f;
+    coord.y = clamp(coord.y, 0, imgsize.y - 1);
+    ivec2 tcoord = ivec2(mod(coord + imgsize, imageSize(stateOut)));
+
+    return iimj * imageLoad(stateOut, tcoord);
+}
+
 vec4 calc_adv_diff(vec4 S, ivec2 tcoord, float lat) {
     // define diffusivities for temp and humidity
-    const vec4 Kxx = vec4(1.0, 1.0, 0.0, 0.0);
-    const vec4 Kyy = vec4(1.0, 1.0, 0.0, 0.0);
+    const vec4 Kxx = vec4(2e-2, 1.0, 0.0, 0.0);
+    const vec4 Kyy = vec4(2e-2, 1.0, 0.0, 0.0);
 
-    // calculate dx, dy
-    float dx = 2.0f * pi * Re * cos(deg2rad(lat)) / gl_NumWorkGroups.x; // lon
-    float dy = 2.0f * pi * Re * cos(deg2rad(lat)) / gl_NumWorkGroups.y; // lat
+    // calculate dx, dy from (4.1)
+    float dlambda = 2.0 * pi / float(gl_NumWorkGroups.x);
+    float dphi = pi / float(gl_NumWorkGroups.y);
+    float dx = Re * cos(deg2rad(lat)) * dlambda;
+    float dy = Re * dphi;
 
-    // fix numerical instability
-    dx = clamp(dx, 1e-3, 1e5);
-    dy = clamp(dy, 1e-3, 1e5);
-
-    // get neighboring states
-    vec4 Sipj = imageLoad(stateOut, tcoord + ivec2( 1,  0));
-    vec4 Simj = imageLoad(stateOut, tcoord + ivec2(-1,  0));
-    vec4 Sijp = imageLoad(stateOut, tcoord + ivec2( 0,  1));
-    vec4 Sijm = imageLoad(stateOut, tcoord + ivec2( 0, -1));
+    vec4 Sipj = safeRead(tcoord + ivec2( 1,  0));
+    vec4 Simj = safeRead(tcoord + ivec2(-1,  0));
+    vec4 Sijp = safeRead(tcoord + ivec2( 0,  1));
+    vec4 Sijm = safeRead(tcoord + ivec2( 0, -1));
 
     // compute dN/dt
+    float fcor = mix(3.0 / 2.0, 1.0, float(tcoord.y - 1 >= 0));
     vec4 dNdt = vec4(0);
-    dNdt = dNdt + ((Sipj * Sipj.aaaa - Simj * Simj.aaaa) / (2.0 * dx));
-    dNdt = dNdt + ((Sijp * Sijp.bbbb - Sijm * Sijm.bbbb) / (2.0 * dy));
-//    dNdt = dNdt - ((Simj - (2.0f * S) + Sipj) * (Kxx / (dx * dx)));
-//    dNdt = dNdt - ((Sijm - (2.0f * S) + Sijp) * (Kyy / (dy * dy)));
+//    dNdt = dNdt + ((Sipj * Sipj.aaaa - Simj * Simj.aaaa) / (2.0 * dx));
+//    dNdt = dNdt + ((Sijp * Sijp.bbbb - Sijm * Sijm.bbbb) / (2.0 * dy));
+    dNdt = dNdt - ((Simj - (2.0f * S) + Sipj) * (Kxx / (dx * dx)));
+    dNdt = dNdt - ((Sijm - (2.0f * fcor * S) + Sijp) * (Kyy / (dy * dy)));
 
-    return dNdt;
+    //2.0 * float(tcoord.y - 1 > 0) - 1.0
+    return vec4(dNdt.r, dNdt.g, fcor, (Simj - (2.0f * S) + Sipj).x);
+//    return vec4(ifact, jfact, 0.0, 0.0);
+//    return vec4(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y, 0.0, 0.0);
 }
 
 void main() {
@@ -103,8 +113,8 @@ void main() {
 
     // coordinates
     float day = t;
-    float lat = (float(gl_GlobalInvocationID.y) / gl_NumWorkGroups.y * 180.0f) - 90.0f;
-    float lon = (float(gl_GlobalInvocationID.x) / gl_NumWorkGroups.x * 360.0f);
+    float lat = (float(gl_GlobalInvocationID.y + 0.5) / float(gl_NumWorkGroups.y) * 180.0f) - 90.0f;
+    float lon = (float(gl_GlobalInvocationID.x) / float(gl_NumWorkGroups.x) * 360.0f);
 
     // pressure
     // float Pa = NA * kB * value.r; // (2.22)
@@ -119,15 +129,19 @@ void main() {
     value.r = value.r + calc_Ts(alpha, Q, value.r) * (dt * secs_per_day);
 
     // compute wind
-    float f = 2.0f * omega * sin(deg2rad(lat)); // (4.35)
-    float tphiRe  = value.b * clamp(tan(deg2rad(lat)), -1e2, 1e6) / Re;
-    float dudt    = value.a * tphiRe + (f * value.a);  // (4.76) trunc.
-    float dvdt    = -value.b * tphiRe - (f * value.b); // (4.77) trunc.
-    value.b = value.b + (dudt * dt * secs_per_day);
-    value.a = value.a + (dvdt * dt * secs_per_day);
+//    float f = 2.0f * omega * sin(deg2rad(lat)); // (4.35)
+//    float tphiRe  = value.b * clamp(tan(deg2rad(lat)), -1e2, 1e6) / Re;
+//    float dudt    = value.a * tphiRe + (f * value.a);  // (4.76) trunc.
+//    float dvdt    = -value.b * tphiRe - (f * value.b); // (4.77) trunc.
+//    value.b = value.b + (dudt * dt * secs_per_day);
+//    value.a = value.a + (dvdt * dt * secs_per_day);
+//    value.a = 0.0f;
+//    value.b = 0.0f;
 
-//    // calculate advdiff
-    value.rg += (calc_adv_diff(value, texelCoord, lat) * dt * secs_per_day).rg;
+    // calculate advdiff
+    vec4 advdiff = calc_adv_diff(value, texelCoord, lat);
+    value.rg += (advdiff.rg * dt * secs_per_day) * dt * secs_per_day;
+    value.ba = advdiff.ba;
 
     imageStore(stateOut, texelCoord, value);
 }
