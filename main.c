@@ -49,7 +49,7 @@ int main() {
     printf("Loaded GLFW: %s\n", glfwGetVersionString());
 
     // glfw window creation
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH * 3, SCR_HEIGHT * 3, "glGCM", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH * 4, SCR_HEIGHT * 4, "glGCM", NULL, NULL);
     if (window == NULL) {
         printf("Failed to create GLFW window\n");
         glfwTerminate();
@@ -149,10 +149,8 @@ int main() {
     float speed = 1.0f; // 1s -> 1 day
 
     // state info
-//    float Tmin = 272.0f; float qmin = 0; float umin = 0; float vmin = 0;
-    float Tmin = 272.0f; float qmin = 1e9; float umin = 0; float vmin = 0;
-//    float Tmax = 275.0f; float qmax = 1; float umax = 0; float vmax = 0;
-    float Tmax = 275.0f; float qmax = -1e9; float umax = 0; float vmax = 0;
+    float Tmin = 272.0f; float qmin =  1e9; float umin =  1e9; float vmin =  1e9;
+    float Tmax = 275.0f; float qmax = -1e9; float umax = -1e9; float vmax = -1e9;
 
     // bind textures
     glActiveTexture(GL_TEXTURE0);
