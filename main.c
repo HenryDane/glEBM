@@ -25,6 +25,12 @@ void GLAPIENTRY messageCallback(GLenum source, GLenum type, GLuint id, GLenum se
     }
 }
 
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+	// make sure the viewport matches the new window dimensions; note that width and
+	// height will be significantly larger than specified on retina displays.
+	glViewport(0, 0, width, height);
+}
+
 int main() {
     // register an error callback
     glfwSetErrorCallback(error_callback);
@@ -43,13 +49,14 @@ int main() {
     printf("Loaded GLFW: %s\n", glfwGetVersionString());
 
     // glfw window creation
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "glGCM", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH * 3, SCR_HEIGHT * 3, "glGCM", NULL, NULL);
     if (window == NULL) {
         printf("Failed to create GLFW window\n");
         glfwTerminate();
         return -1;
     }
     glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSwapInterval(0);
 
     // initialize glew
@@ -153,6 +160,9 @@ int main() {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, solat_LUT);
 
+    float t = 0.0f;
+    float dt = 1e-3f;
+
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {
         // compute frame time
@@ -162,10 +172,13 @@ int main() {
 
         // dispatch compute shader
         glUseProgram(compute_shader);
-        glUniform1f(css_t_l, currentFrame * speed);
-        glUniform1f(css_dt_l, delta * speed);
+//        glUniform1f(css_t_l, currentFrame * speed);
+//        glUniform1f(css_dt_l, delta * speed);
+        glUniform1f(css_t_l, t);
+        glUniform1f(css_dt_l, dt);
         glUniform1i(css_insol_LUT_l, 1);
         glDispatchCompute((unsigned int)SCR_WIDTH, (unsigned int)SCR_HEIGHT, 1);
+        t += dt;
 
         // make sure writing to image has finished before read
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -192,8 +205,10 @@ int main() {
         // collect statistics
         if (frame_ctr % 500 == 0) {
 #ifndef REDUCED_OUTPUT
+//            printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
+//                currentFrame * speed, delta * speed * 24.0f * 60.0f, 1.0f / delta);
             printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
-                currentFrame * speed, delta * speed * 24.0f * 60.0f, 1.0f / delta);
+                t, dt * 24.0f * 60.0f, 1.0f / delta);
 #else
             printf("%.4e ", currentFrame * speed);
 #endif // REDUCED_OUTPUT
