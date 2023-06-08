@@ -8,11 +8,21 @@
 float* make_2d_initial(int nx, int ny) {
     float* data = (float*) malloc(nx * ny * 4 * sizeof(float));
 
-    for (size_t i = 0; i < nx * ny; i++) {
-        data[(i * 4) + 0] = 273.15f; // insolation
-        data[(i * 4) + 1] =   0.0f;  // vapor mmr
-        data[(i * 4) + 2] =   0.05f;  // meridional wind
-        data[(i * 4) + 3] =   0.05f;  // zonal wind
+    for (size_t y = 0; y < ny; y++) {
+        for (size_t x = 0; x < nx; x++) {
+            size_t i = (y * nx) + x;
+
+            // temperature
+            if (x > nx/2) {
+                data[(i * 4) + 0] = 200.0;
+            } else {
+                data[(i * 4) + 0] = 100.0;
+            }
+
+            data[(i * 4) + 1] =   0.0f;  // vapor mmr
+            data[(i * 4) + 2] =   0.05f;  // meridional wind
+            data[(i * 4) + 3] =   0.05f;  // zonal wind
+        }
     }
 
     return data;
@@ -36,9 +46,6 @@ unsigned int make_solar_table() {
             float abra = a2_b2_ratio(ecc, slon, long_peri_rad);
             float H0   = calc_H0(lat, obliquity, slon);
             float delta = asin(sin(deg2rad(obliquity)) * sin(slon));
-
-//            printf("%.4f %.4f %.4e %.4e %.4e %.4e\n", lat, day, slon, abra, H0,
-//                   delta);
 
             data[((y * nx) + x) * 4 + 0] = slon;
             data[((y * nx) + x) * 4 + 1] = abra;

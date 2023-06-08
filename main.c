@@ -49,7 +49,7 @@ int main() {
     printf("Loaded GLFW: %s\n", glfwGetVersionString());
 
     // glfw window creation
-    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH * 4, SCR_HEIGHT * 4, "glGCM", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "glGCM", NULL, NULL);
     if (window == NULL) {
         printf("Failed to create GLFW window\n");
         glfwTerminate();
@@ -111,7 +111,7 @@ int main() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 
     // create 2d state texture
-    float* data = make_2d_initial(SCR_WIDTH, SCR_HEIGHT);
+    float* data = make_2d_initial(MODEL_WIDTH, MODEL_HEIGHT);
     unsigned int surf_texture;
     glGenTextures(1, &surf_texture);
     glBindTexture(GL_TEXTURE_2D, surf_texture);
@@ -119,11 +119,10 @@ int main() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, data);
-    glBindImageTexture(0, surf_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-//    glActiveTexture(GL_TEXTURE0);
-//    glBindTexture(GL_TEXTURE_2D, surf_texture);
-//    glBindTexture(0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, MODEL_WIDTH, MODEL_HEIGHT, 0,
+        GL_RGBA, GL_FLOAT, data);
+    glBindImageTexture(0, surf_texture, 0, GL_FALSE, 0, GL_READ_WRITE,
+        GL_RGBA32F);
 
     // create solar LUT texture
     unsigned int solat_LUT = make_solar_table();
@@ -149,8 +148,8 @@ int main() {
     float speed = 1.0f; // 1s -> 1 day
 
     // state info
-    float Tmin = 272.0f; float qmin =  1e9; float umin =  1e9; float vmin =  1e9;
-    float Tmax = 275.0f; float qmax = -1e9; float umax = -1e9; float vmax = -1e9;
+    float Tmin =  1e9; float qmin =  1e9; float umin =  1e9; float vmin =  1e9;
+    float Tmax = 1e-9; float qmax = -1e9; float umax = -1e9; float vmax = -1e9;
 
     // bind textures
     glActiveTexture(GL_TEXTURE0);
@@ -159,7 +158,7 @@ int main() {
     glBindTexture(GL_TEXTURE_2D, solat_LUT);
 
     float t = 0.0f;
-    float dt = 1e-3f;
+    float dt = 1e-1f;
 
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {
@@ -175,7 +174,7 @@ int main() {
         glUniform1f(css_t_l, t);
         glUniform1f(css_dt_l, dt);
         glUniform1i(css_insol_LUT_l, 1);
-        glDispatchCompute((unsigned int)SCR_WIDTH, (unsigned int)SCR_HEIGHT, 1);
+        glDispatchCompute((unsigned int)MODEL_WIDTH, (unsigned int)MODEL_HEIGHT, 1);
         t += dt;
 
         // make sure writing to image has finished before read
@@ -210,7 +209,7 @@ int main() {
 #else
             printf("%.4e ", currentFrame * speed);
 #endif // REDUCED_OUTPUT
-            fetch_2d_state(surf_texture, SCR_WIDTH, SCR_HEIGHT, &Tmax, &Tmin,
+            fetch_2d_state(surf_texture, MODEL_WIDTH, MODEL_HEIGHT, &Tmax, &Tmin,
                 &qmax, &qmin, &umax, &umin, &vmax, &vmin);
         }
 

@@ -4,8 +4,11 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#define SCR_WIDTH  128
-#define SCR_HEIGHT 128
+#define SCR_WIDTH  512
+#define SCR_HEIGHT 512
+
+#define MODEL_WIDTH  128
+#define MODEL_HEIGHT 128
 
 //#define REDUCED_OUTPUT
 
