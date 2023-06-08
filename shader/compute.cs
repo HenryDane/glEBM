@@ -15,7 +15,7 @@ const float pi            =    3.14159265;
 const float days_per_year =  365.0f;
 const float secs_per_day  = 86400.0f;
 const float S0            = 1367.0f;
-const float C_val         = (4e3) * (1e3) * (10.0); // 10m of water
+//const float C_val         = (4e3) * (1e3) * (10.0); // 10m of water
 const float sigma         = 5.67e-8f;
 const float Re            = 6.378e6f;
 const float omega         = 7.292e-5;
@@ -32,9 +32,10 @@ const float ai =   0.62f;
 const float Tf = 263.15f;
 
 // boltzmann parameters
-const float bm_A = 210.0f;
-const float bm_B =   2.0f;
 const float tau  =   0.61f;
+
+// diffusity constants
+const float D = 0.6;
 
 float deg2rad(float x) {
     return pi / 180.0f * x;
@@ -42,6 +43,10 @@ float deg2rad(float x) {
 
 float calcP2(float x) {
     return 0.5 * (3 * x * x - 1.0);
+}
+
+float calc_Cval(float d) {
+    return (4e3) * (1e3) * d;
 }
 
 float calc_Q(float lat, float lon, float day) {
@@ -62,7 +67,7 @@ float calc_albedo(float Ts, float lat) {
     return (Ts > Tf) ? a0 + a2 * calcP2(sin(phi)) : ai;
 }
 
-float calc_Ts(float albedo, float Q, float T_old) {
+float calc_Ts(float albedo, float Q, float T_old, float C_val) {
     return (((1 - albedo) * Q) - (tau * sigma * T_old * T_old * T_old * T_old)) / C_val;
 }
 
@@ -103,9 +108,9 @@ vec4 calc_adv_diff(vec4 S, ivec2 tcoord, float lat) {
 }
 
 void main() {
-    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
     // Ts, q, u, v
     //  r, g, b, a
+    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
     vec4 value = imageLoad(stateOut, texelCoord);
 
     // coordinates
@@ -113,14 +118,17 @@ void main() {
     float lat = (float(gl_GlobalInvocationID.y + 0.5) / float(gl_NumWorkGroups.y) * 180.0f) - 90.0f;
     float lon = (float(gl_GlobalInvocationID.x) / float(gl_NumWorkGroups.x) * 360.0f);
 
-    // pressure
-    // float Pa = NA * kB * value.r; // (2.22)
-
     // compute instant insolation
     float Q = calc_Q(lat, lon, day);
 
     // compute albedo
     float alpha = calc_albedo(value.r, lat);
+
+    // compute land stuff
+    float land_frac = float(lat > -10) * float(lat <  25) *
+                   float(lon > 100) * float(lon < 200);
+    alpha = alpha + 0.07 * land_frac;
+    float C_val = calc_Cval(mix(30.0, 1.0, land_frac));
 
     // compute temperature
     value.r = value.r + calc_Ts(alpha, Q, value.r) * (dt * secs_per_day);
