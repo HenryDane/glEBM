@@ -13,12 +13,7 @@ float* make_2d_initial(int nx, int ny) {
             size_t i = (y * nx) + x;
 
             // temperature
-            if (x > nx/2) {
-                data[(i * 4) + 0] = 200.0;
-            } else {
-                data[(i * 4) + 0] = 100.0;
-            }
-
+            data[(i * 4) + 0] = 273.15;
             data[(i * 4) + 1] =   0.0f;  // vapor mmr
             data[(i * 4) + 2] =   0.05f;  // meridional wind
             data[(i * 4) + 3] =   0.05f;  // zonal wind
