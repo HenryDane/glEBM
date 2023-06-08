@@ -158,7 +158,7 @@ int main() {
     glBindTexture(GL_TEXTURE_2D, solat_LUT);
 
     float t = 0.0f;
-    float dt = 1e-4f;
+    float dt = 1e-2f;
 
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {
