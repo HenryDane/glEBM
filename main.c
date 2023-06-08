@@ -25,6 +25,12 @@ void GLAPIENTRY messageCallback(GLenum source, GLenum type, GLuint id, GLenum se
     }
 }
 
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+	// make sure the viewport matches the new window dimensions; note that width and
+	// height will be significantly larger than specified on retina displays.
+	glViewport(0, 0, width, height);
+}
+
 int main() {
     // register an error callback
     glfwSetErrorCallback(error_callback);
@@ -50,6 +56,7 @@ int main() {
         return -1;
     }
     glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSwapInterval(0);
 
     // initialize glew
@@ -104,7 +111,7 @@ int main() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 
     // create 2d state texture
-    float* data = make_2d_initial(SCR_WIDTH, SCR_HEIGHT);
+    float* data = make_2d_initial(MODEL_WIDTH, MODEL_HEIGHT);
     unsigned int surf_texture;
     glGenTextures(1, &surf_texture);
     glBindTexture(GL_TEXTURE_2D, surf_texture);
@@ -112,11 +119,10 @@ int main() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, data);
-    glBindImageTexture(0, surf_texture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
-//    glActiveTexture(GL_TEXTURE0);
-//    glBindTexture(GL_TEXTURE_2D, surf_texture);
-//    glBindTexture(0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, MODEL_WIDTH, MODEL_HEIGHT, 0,
+        GL_RGBA, GL_FLOAT, data);
+    glBindImageTexture(0, surf_texture, 0, GL_FALSE, 0, GL_READ_WRITE,
+        GL_RGBA32F);
 
     // create solar LUT texture
     unsigned int solat_LUT = make_solar_table();
@@ -128,8 +134,8 @@ int main() {
     // configure screen shader
     glUseProgram(screen_shader);
     glUniform1i(glGetUniformLocation(screen_shader, "tex"), 0);
-    unsigned int ss_tmax_l = glGetUniformLocation(screen_shader, "Tmax");
-    unsigned int ss_tmin_l = glGetUniformLocation(screen_shader, "Tmin");
+    unsigned int ss_maxs_l = glGetUniformLocation(screen_shader, "maxs");
+    unsigned int ss_mins_l = glGetUniformLocation(screen_shader, "mins");
 
     // figure out compute shader stuff
     unsigned int css_t_l         = glGetUniformLocation(compute_shader, "t");
@@ -142,14 +148,17 @@ int main() {
     float speed = 1.0f; // 1s -> 1 day
 
     // state info
-    float Tmin = 200.0f;
-    float Tmax = 350.0f;
+    float Tmin =  1e9; float qmin =  1e9; float umin =  1e9; float vmin =  1e9;
+    float Tmax = 1e-9; float qmax = -1e9; float umax = -1e9; float vmax = -1e9;
 
     // bind textures
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, surf_texture);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, solat_LUT);
+
+    float t = 0.0f;
+    float dt = 1e-2f;
 
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {
@@ -160,10 +169,13 @@ int main() {
 
         // dispatch compute shader
         glUseProgram(compute_shader);
-        glUniform1f(css_t_l, currentFrame * speed);
-        glUniform1f(css_dt_l, delta * speed);
+//        glUniform1f(css_t_l, currentFrame * speed);
+//        glUniform1f(css_dt_l, delta * speed);
+        glUniform1f(css_t_l, t);
+        glUniform1f(css_dt_l, dt);
         glUniform1i(css_insol_LUT_l, 1);
-        glDispatchCompute((unsigned int)SCR_WIDTH, (unsigned int)SCR_HEIGHT, 1);
+        glDispatchCompute((unsigned int)MODEL_WIDTH, (unsigned int)MODEL_HEIGHT, 1);
+        t += dt;
 
         // make sure writing to image has finished before read
         glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
@@ -172,8 +184,8 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(screen_shader);
         glUniform1i(glGetUniformLocation(screen_shader, "tex"), 0);
-        glUniform1f(ss_tmax_l, Tmax);
-        glUniform1f(ss_tmin_l, Tmin);
+        glUniform4f(ss_maxs_l, Tmax, qmax, umax, vmax);
+        glUniform4f(ss_mins_l, Tmin, qmin, umin, vmin);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, surf_texture);
         glBindVertexArray(quadVAO);
@@ -190,12 +202,15 @@ int main() {
         // collect statistics
         if (frame_ctr % 500 == 0) {
 #ifndef REDUCED_OUTPUT
+//            printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
+//                currentFrame * speed, delta * speed * 24.0f * 60.0f, 1.0f / delta);
             printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
-                currentFrame * speed, delta * speed * 24.0f * 60.0f, 1.0f / delta);
+                t, dt * 24.0f * 60.0f, 1.0f / delta);
 #else
             printf("%.4e ", currentFrame * speed);
 #endif // REDUCED_OUTPUT
-            fetch_2d_state(surf_texture, SCR_WIDTH, SCR_HEIGHT, &Tmax, &Tmin);
+            fetch_2d_state(surf_texture, MODEL_WIDTH, MODEL_HEIGHT, &Tmax, &Tmin,
+                &qmax, &qmin, &umax, &umin, &vmax, &vmin);
         }
 
         // frame counter

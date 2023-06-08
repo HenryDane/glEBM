@@ -4,51 +4,39 @@
 #include <stdio.h>
 
 void fetch_2d_state(unsigned int texture, int nx, int ny, float* Tmax,
-    float* Tmin) {
+    float* Tmin, float* qmax, float* qmin, float* umax, float* umin,
+    float* vmax, float* vmin) {
     // create a buffer
     float* data = malloc(nx * ny * 4 * sizeof(float));
 
     // read texture into buffer
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_FLOAT, data);
 
-    // prepare temp search
+    // prepare search
     float Tmean = 0.0f;
-    (*Tmax)     = 0.0f;
-    (*Tmin)     = 1.0e9f;
-
-    // prepare albedo search
-    float amean = 0.0f;
-    float amax  = 0.0f;
-    float amin  = 1.0e9f;
-
-    // prepare insolation search
-    float Qmean = 0.0f;
-    float Qmax  = 0.0f;
-    float Qmin  = 1.0e9f;
-
-    // prepare to process 4th channel
-//    float dtmean = 0.0f;
-//    float dtmax  = 0.0f;
-//    float dtmin  = 1.0e9f;
+    float qmean = 0.0f;
+    float umean = 0.0f;
+    float vmean = 0.0f;
 
     // explore texture
     for (size_t i = 0; i < nx * ny; i++) {
-        mmm(data[(i * 4) + 0], &Qmin, &Qmax, &Qmean);
-        mmm(data[(i * 4) + 1], &amin, &amax, &amean);
-        mmm(data[(i * 4) + 2], Tmin, Tmax, &Tmean);
-//        mmm(data[(i*4) + 3], &dtmin, &dtmax, &dtmean);
+        mmm(data[(i * 4) + 0], Tmin, Tmax, &Tmean);
+        mmm(data[(i * 4) + 1], qmin, qmax, &qmean);
+        mmm(data[(i * 4) + 2], umin, umax, &umean);
+        mmm(data[(i * 4) + 3], vmin, vmax, &vmean);
     }
 
+    // convert sums to means
     Tmean = Tmean / ((float) nx * ny);
-    Qmean = Qmean / ((float) nx * ny);
-    amean = amean / ((float) nx * ny);
-//    dtmean = dtmean / ((float) nx * ny);
+    qmean = qmean / ((float) nx * ny);
+    umean = umean / ((float) nx * ny);
+    vmean = vmean / ((float) nx * ny);
 
 #ifndef REDUCED_OUTPUT
-    printf("  Temperature min=%.4f max=%.4f mean=%.4f\n", *Tmin, *Tmax, Tmean);
-    printf("  Albedo      min=%.4f max=%.4f mean=%.4f\n", amin, amax, amean);
-    printf("  Insolation  min=%.4f max=%.4f mean=%.4f\n", Qmin, Qmax, Qmean);
-//    printf("  dt          min=%.4f max=%.4f mean=%.4f\n", dtmin, dtmax, dtmean);
+    printf("  Temperature  min=%.4f max=%.4f mean=%.4f\n", *Tmin, *Tmax, Tmean);
+    printf("  Vapor MMR    min=%.4f max=%.4f mean=%.4f\n", *qmin, *qmax, qmean);
+    printf("  Merid. Wind  min=%.4e max=%.4e mean=%.4e\n", *umin, *umax, umean);
+    printf("  Zonal Wind   min=%.4e max=%.4e mean=%.4e\n", *vmin, *vmax, vmean);
 #else
     printf("%.4f %.4f %.4f\n", *Tmin, *Tmax, Tmean);
 #endif // REDUCED_OUTPUT
