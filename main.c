@@ -204,8 +204,13 @@ int main() {
 #ifndef REDUCED_OUTPUT
 //            printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
 //                currentFrame * speed, delta * speed * 24.0f * 60.0f, 1.0f / delta);
-            printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
-                t, dt * 24.0f * 60.0f, 1.0f / delta);
+            if (t <= 365.24f) {
+                printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
+                    t, dt * 24.0f * 60.0f, 1.0f / delta);
+            } else {
+                printf("fc=%d t=%.4f (yr) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
+                    t / 365.24f, dt * 24.0f * 60.0f, 1.0f / delta);
+            }
 #else
             printf("%.4e ", currentFrame * speed);
 #endif // REDUCED_OUTPUT
