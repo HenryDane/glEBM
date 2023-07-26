@@ -117,7 +117,7 @@ void main() {
     // coordinates
     float day = t;
     float lat = (float(gl_GlobalInvocationID.y + 0.5) / float(gl_NumWorkGroups.y) * 180.0f) - 90.0f;
-    float lon = (float(gl_GlobalInvocationID.x) / float(gl_NumWorkGroups.x) * 360.0f);
+    float lon = (float(gl_GlobalInvocationID.x + 0.5) / float(gl_NumWorkGroups.x) * 360.0f);
 
     // compute instant insolation
     float Q = calc_Q(lat, lon, day);
@@ -126,11 +126,12 @@ void main() {
     float alpha = calc_albedo(value.r, lat);
 
     // calc land fraction
-    float lfrac = float(lat > -20) * float(lat < 25) *
-        float(lon > 20) * float(lon < 180);
-    lfrac = lfrac + (float(lat > -40) * float(lat < -15) *
-        float(lon >150) * float(lon < 250));
-    lfrac = clamp(lfrac, 0, 1);
+//    float lfrac = float(lat > -20) * float(lat < 25) *
+//        float(lon > 20) * float(lon < 180);
+//    lfrac = lfrac + (float(lat > -40) * float(lat < -15) *
+//        float(lon >150) * float(lon < 250));
+//    lfrac = clamp(lfrac, 0, 1);
+    float lfrac = 0.0f;
 
     // update albedo
     alpha = mix(alpha, a0 +  0.07, lfrac);
