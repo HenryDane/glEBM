@@ -83,11 +83,14 @@ vec4 safeRead(ivec2 coord) {
     return imageLoad(stateOut, tc);
 }
 
-vec4 calc_adv_diff(vec4 S, ivec2 tcoord, float lat) {
+vec4 calc_adv_diff(vec4 S, ivec2 tcoord, float C_val, float lat) {
     // define diffusivities for temp and humidity
-    const float Kt = 100.0;
-    const vec4 Kxx = vec4(Kt, 1.0, 0.0, 0.0);
-    const vec4 Kyy = vec4(Kt, 1.0, 0.0, 0.0);
+    const float D = 0.55;
+    const float K = D / C_val;
+    //const vec4 Kxx = vec4(Kt, 1.0, 0.0, 0.0);
+    vec4 Kxx = vec4(K, 1.0, 0.0, 0.0);
+    //const vec4 Kyy = vec4(Kt, 1.0, 0.0, 0.0);
+    vec4 Kyy = vec4(K, 1.0, 0.0, 0.0);
 
     // calculate dx, dy from (4.1)
     float dlambda = 2.0 * pi / float(gl_NumWorkGroups.x);
@@ -124,28 +127,16 @@ void main() {
 
     // compute albedo
     float alpha = calc_albedo(value.r, lat);
-
-    // calc land fraction
-//    float lfrac = float(lat > -20) * float(lat < 25) *
-//        float(lon > 20) * float(lon < 180);
-//    lfrac = lfrac + (float(lat > -40) * float(lat < -15) *
-//        float(lon >150) * float(lon < 250));
-//    lfrac = clamp(lfrac, 0, 1);
-    float lfrac = 0.0f;
-
-    // update albedo
-    alpha = mix(alpha, a0 +  0.07, lfrac);
     clamp(alpha, 0, 1);
 
     // calculate water depth
-    float depth = mix(30.0, 0.1, lfrac);
-    float C_val = calc_Cval(depth);
+    float C_val = calc_Cval(30.0);
 
     // compute temperature
     value.r = value.r + calc_Ts(alpha, Q, value.r, C_val) * (dt * secs_per_day);
 
     // calculate advdiff
-    value.rg += (calc_adv_diff(value, texelCoord, lat).rg * dt * secs_per_day);
+    value.rg += (calc_adv_diff(value, texelCoord, C_val, lat).rg * dt * secs_per_day);
 
     imageStore(stateOut, texelCoord, value);
 }
