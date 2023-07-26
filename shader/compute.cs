@@ -69,6 +69,12 @@ float calc_Ts(float albedo, float Q, float T_old, float C_val) {
     return (((1 - albedo) * Q) - (tau * sigma * T_old * T_old * T_old * T_old)) / C_val;
 }
 
+float calc_f_moist(float T) {
+    const float r = 0.5; // 50%
+
+    return 0.0f;
+}
+
 vec4 safeRead(ivec2 coord) {
     ivec2 imgsize = imageSize(stateOut);
     coord.y = clamp(coord.y, 0, imgsize.y - 1);

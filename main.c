@@ -117,8 +117,8 @@ int main() {
     glBindTexture(GL_TEXTURE_2D, surf_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, MODEL_WIDTH, MODEL_HEIGHT, 0,
         GL_RGBA, GL_FLOAT, data);
     glBindImageTexture(0, surf_texture, 0, GL_FALSE, 0, GL_READ_WRITE,
@@ -158,7 +158,7 @@ int main() {
     glBindTexture(GL_TEXTURE_2D, solat_LUT);
 
     float t = 0.0f;
-    float dt = 1e-2f;
+    float dt = 1e-1f;
 
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {
@@ -216,6 +216,12 @@ int main() {
 #endif // REDUCED_OUTPUT
             fetch_2d_state(surf_texture, MODEL_WIDTH, MODEL_HEIGHT, &Tmax, &Tmin,
                 &qmax, &qmin, &umax, &umin, &vmax, &vmin);
+        }
+
+        if (t > 365.24f * 3) {
+            const char* path = "result.csv";
+            fetch_and_dump_state(surf_texture, MODEL_WIDTH, MODEL_HEIGHT, path);
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
         }
 
         // frame counter
