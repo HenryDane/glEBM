@@ -44,7 +44,7 @@ float calcP2(float x) {
 }
 
 float calc_Cval(float depth) {
-    return 4.0e3 * 1.0e3 * depth;
+    return 4181.3 * 1.0e3 * depth;
 }
 
 float calc_Q(float lat, float lon, float day) {
@@ -128,6 +128,10 @@ void main() {
     // compute albedo
     float alpha = calc_albedo(value.r, lat);
     clamp(alpha, 0, 1);
+
+    // TEMPORARY
+    value.a = alpha;
+    value.b = Q;
 
     // calculate water depth
     float C_val = calc_Cval(30.0);
