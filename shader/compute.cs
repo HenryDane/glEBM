@@ -1,6 +1,6 @@
 #version 430 core
 
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
 //layout(rgba32f, binding = 0) uniform image2D stateIn;
 //layout(rgba32f, binding = 1) uniform image2D stateOut;
@@ -93,8 +93,8 @@ vec4 calc_adv_diff(vec4 S, ivec2 tcoord, float C_val, float lat) {
     vec4 Kyy = vec4(K, 1.0, 0.0, 0.0);
 
     // calculate dx, dy from (4.1)
-    float dlambda = 2.0 * pi / float(gl_NumWorkGroups.x);
-    float dphi = pi / float(gl_NumWorkGroups.y);
+    float dlambda = 2.0 * pi / float(gl_NumWorkGroups.x * gl_WorkGroupSize.x);
+    float dphi = pi / float(gl_NumWorkGroups.y * gl_WorkGroupSize.y);
     float dx = Re * cos(deg2rad(lat)) * dlambda;
     float dy = Re * dphi;
 
@@ -119,8 +119,8 @@ void main() {
 
     // coordinates
     float day = t;
-    float lat = (float(gl_GlobalInvocationID.y + 0.5) / float(gl_NumWorkGroups.y) * 180.0f) - 90.0f;
-    float lon = (float(gl_GlobalInvocationID.x + 0.5) / float(gl_NumWorkGroups.x) * 360.0f);
+    float lat = (float(gl_GlobalInvocationID.y + 0.5) / float(gl_NumWorkGroups.y * gl_WorkGroupSize.y) * 180.0f) - 90.0f;
+    float lon = (float(gl_GlobalInvocationID.x + 0.5) / float(gl_NumWorkGroups.x * gl_WorkGroupSize.x) * 360.0f);
 
     // compute instant insolation
     float Q = calc_Q(lat, lon, day);
@@ -142,5 +142,6 @@ void main() {
     // calculate advdiff
     value.rg += (calc_adv_diff(value, texelCoord, C_val, lat).rg * dt * secs_per_day);
 
+//    imageStore(stateOut, texelCoord, texelCoord);
     imageStore(stateOut, texelCoord, value);
 }

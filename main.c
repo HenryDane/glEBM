@@ -127,6 +127,8 @@ int main(int argc, char *argv[]) {
         max_compute_work_group_count[1], max_compute_work_group_count[2]);
     printf("Max group size: %d %d %d\n", max_compute_work_group_size[0],
         max_compute_work_group_size[1], max_compute_work_group_size[2]);
+    printf("Max invocations: %d\n", max_compute_work_group_invocations);
+    printf("Model size: %d %d (%d %d)\n", model_size_x, model_size_y, model_size_x / 32, model_size_y / 32);
 
     // create quad
     unsigned int quadVBO, quadVAO = 0;
@@ -209,7 +211,7 @@ int main(int argc, char *argv[]) {
         glUniform1f(css_t_l, t);
         glUniform1f(css_dt_l, dt);
         glUniform1i(css_insol_LUT_l, 1);
-        glDispatchCompute((unsigned int)model_size_x, (unsigned int)model_size_y, 1);
+        glDispatchCompute((unsigned int)model_size_x / 32, (unsigned int)model_size_y / 32, 1);
         t += dt;
 
         // make sure writing to image has finished before read
