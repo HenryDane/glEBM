@@ -27,7 +27,7 @@ void main() {
 
     value = (value - mins) / (maxs - mins);
 
-    FragColor = vec4(color_map(value.r), 1.0);
+    FragColor = vec4(color_map(clamp(value.r, 0, 1)), 1.0);
 //    FragColor = vec4(vec3(value.r), 1.0);
 //    FragColor = vec4(vec3(value.a), 1.0);
 //    FragColor = vec4(1 - value.a, 0.0, 0.0, 1.0);
