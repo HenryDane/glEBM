@@ -7,8 +7,10 @@
 #define SCR_WIDTH  512
 #define SCR_HEIGHT 512
 
-#define MODEL_WIDTH  512
-#define MODEL_HEIGHT 512
+#define DEFAULT_MODEL_WIDTH  2048
+#define DEFAULT_MODEL_HEIGHT 2048
+
+#define DEFAULT_RESULT_PATH "results/"
 
 //#define REDUCED_OUTPUT
 

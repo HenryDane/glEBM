@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <errno.h>
 #include "common.h"
 #include "profile.h"
 #include "initial.h"
@@ -31,7 +32,44 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
 	glViewport(0, 0, width, height);
 }
 
-int main() {
+bool is_pow2(int x) {
+    return (x > 0) && ((x & (x - 1)) == 0);
+}
+
+int main(int argc, char *argv[]) {
+    int model_size_x = DEFAULT_MODEL_WIDTH;
+    int model_size_y = DEFAULT_MODEL_HEIGHT;
+
+    // parse arguments
+    if (argc > 1){
+        char* p;
+        // require either all arguments specified, or none specified
+        if (argc != 3) {
+            printf("Usage: glEBM width height\n");
+            return 0;
+        }
+
+        model_size_x = strtol(argv[1], &p, 10);
+        if (errno == ERANGE) {
+            printf("Error: width value could not be converted to int.\n");
+            return 0;
+        }
+        if (!is_pow2(model_size_x)) {
+            printf("Error: width value must be a power of 2.\n");
+            return 0;
+        }
+
+        model_size_y = strtol(argv[2], &p, 10);
+        if (errno == ERANGE) {
+            printf("Error: height value could not be converted to int.\n");
+            return 0;
+        }
+        if (!is_pow2(model_size_y)) {
+            printf("Error: height value must be a power of 2.\n");
+            return 0;
+        }
+    }
+
     // register an error callback
     glfwSetErrorCallback(error_callback);
 
@@ -89,6 +127,8 @@ int main() {
         max_compute_work_group_count[1], max_compute_work_group_count[2]);
     printf("Max group size: %d %d %d\n", max_compute_work_group_size[0],
         max_compute_work_group_size[1], max_compute_work_group_size[2]);
+    printf("Max invocations: %d\n", max_compute_work_group_invocations);
+    printf("Model size: %d %d (%d %d)\n", model_size_x, model_size_y, model_size_x / 32, model_size_y / 32);
 
     // create quad
     unsigned int quadVBO, quadVAO = 0;
@@ -111,15 +151,15 @@ int main() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 
     // create 2d state texture
-    float* data = make_2d_initial(MODEL_WIDTH, MODEL_HEIGHT);
+    float* data = make_2d_initial(model_size_x, model_size_y);
     unsigned int surf_texture;
     glGenTextures(1, &surf_texture);
     glBindTexture(GL_TEXTURE_2D, surf_texture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, MODEL_WIDTH, MODEL_HEIGHT, 0,
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, model_size_x, model_size_y, 0,
         GL_RGBA, GL_FLOAT, data);
     glBindImageTexture(0, surf_texture, 0, GL_FALSE, 0, GL_READ_WRITE,
         GL_RGBA32F);
@@ -145,7 +185,6 @@ int main() {
     // timing state info
     float currentFrame, delta, tlast = 0.0f;
     int frame_ctr = 0;
-    float speed = 1.0f; // 1s -> 1 day
 
     // state info
     float Tmin =  1e9; float qmin =  1e9; float umin =  1e9; float vmin =  1e9;
@@ -158,7 +197,7 @@ int main() {
     glBindTexture(GL_TEXTURE_2D, solat_LUT);
 
     float t = 0.0f;
-    float dt = 1e-2f;
+    float dt = 1e-1f;
 
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {
@@ -169,16 +208,14 @@ int main() {
 
         // dispatch compute shader
         glUseProgram(compute_shader);
-//        glUniform1f(css_t_l, currentFrame * speed);
-//        glUniform1f(css_dt_l, delta * speed);
         glUniform1f(css_t_l, t);
         glUniform1f(css_dt_l, dt);
         glUniform1i(css_insol_LUT_l, 1);
-        glDispatchCompute((unsigned int)MODEL_WIDTH, (unsigned int)MODEL_HEIGHT, 1);
+        glDispatchCompute((unsigned int)model_size_x / 32, (unsigned int)model_size_y / 32, 1);
         t += dt;
 
         // make sure writing to image has finished before read
-        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+//        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
         // render image to quad
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -204,13 +241,24 @@ int main() {
 #ifndef REDUCED_OUTPUT
 //            printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
 //                currentFrame * speed, delta * speed * 24.0f * 60.0f, 1.0f / delta);
-            printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
-                t, dt * 24.0f * 60.0f, 1.0f / delta);
+            if (t <= 365.24f) {
+                printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
+                    t, dt * 24.0f * 60.0f, 1.0f / delta);
+            } else {
+                printf("fc=%d t=%.4f (yr) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
+                    t / 365.24f, dt * 24.0f * 60.0f, 1.0f / delta);
+            }
 #else
             printf("%.4e ", currentFrame * speed);
 #endif // REDUCED_OUTPUT
-            fetch_2d_state(surf_texture, MODEL_WIDTH, MODEL_HEIGHT, &Tmax, &Tmin,
+            fetch_2d_state(surf_texture, model_size_x, model_size_y, &Tmax, &Tmin,
                 &qmax, &qmin, &umax, &umin, &vmax, &vmin);
+        }
+
+        if (t > 365.24f * 3) {
+            const char* path = "result.csv";
+            fetch_and_dump_state(surf_texture, model_size_x, model_size_y, path);
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
         }
 
         // frame counter

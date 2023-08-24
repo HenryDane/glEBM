@@ -1,6 +1,6 @@
 #version 430 core
 
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
 //layout(rgba32f, binding = 0) uniform image2D stateIn;
 //layout(rgba32f, binding = 1) uniform image2D stateOut;
@@ -15,7 +15,6 @@ const float pi            =    3.14159265;
 const float days_per_year =  365.0f;
 const float secs_per_day  = 86400.0f;
 const float S0            = 1367.0f;
-const float C_val         = (4e3) * (1e3) * (10.0); // 10m of water
 const float sigma         = 5.67e-8f;
 const float Re            = 6.378e6f;
 const float omega         = 7.292e-5;
@@ -44,6 +43,10 @@ float calcP2(float x) {
     return 0.5 * (3 * x * x - 1.0);
 }
 
+float calc_Cval(float depth) {
+    return 4181.3 * 1.0e3 * depth;
+}
+
 float calc_Q(float lat, float lon, float day) {
     vec2 coord  = vec2(day / 365.0f, (lat + 90.0f) / 180.0f);
     vec4 soldat = texture(insol_LUT, coord); // solar_lon, S0*b2/a2, H0, delta
@@ -62,8 +65,14 @@ float calc_albedo(float Ts, float lat) {
     return (Ts > Tf) ? a0 + a2 * calcP2(sin(phi)) : ai;
 }
 
-float calc_Ts(float albedo, float Q, float T_old) {
+float calc_Ts(float albedo, float Q, float T_old, float C_val) {
     return (((1 - albedo) * Q) - (tau * sigma * T_old * T_old * T_old * T_old)) / C_val;
+}
+
+float calc_f_moist(float T) {
+    const float r = 0.5; // 50%
+
+    return 0.0f;
 }
 
 vec4 safeRead(ivec2 coord) {
@@ -74,14 +83,18 @@ vec4 safeRead(ivec2 coord) {
     return imageLoad(stateOut, tc);
 }
 
-vec4 calc_adv_diff(vec4 S, ivec2 tcoord, float lat) {
+vec4 calc_adv_diff(vec4 S, ivec2 tcoord, float C_val, float lat) {
     // define diffusivities for temp and humidity
-    const vec4 Kxx = vec4(2e-2, 1.0, 0.0, 0.0);
-    const vec4 Kyy = vec4(2e-2, 1.0, 0.0, 0.0);
+    const float D = 0.55;
+    const float K = D / C_val;
+    //const vec4 Kxx = vec4(Kt, 1.0, 0.0, 0.0);
+    vec4 Kxx = vec4(K, 1.0, 0.0, 0.0);
+    //const vec4 Kyy = vec4(Kt, 1.0, 0.0, 0.0);
+    vec4 Kyy = vec4(K, 1.0, 0.0, 0.0);
 
     // calculate dx, dy from (4.1)
-    float dlambda = 2.0 * pi / float(gl_NumWorkGroups.x);
-    float dphi = pi / float(gl_NumWorkGroups.y);
+    float dlambda = 2.0 * pi / float(gl_NumWorkGroups.x * gl_WorkGroupSize.x);
+    float dphi = pi / float(gl_NumWorkGroups.y * gl_WorkGroupSize.y);
     float dx = Re * cos(deg2rad(lat)) * dlambda;
     float dy = Re * dphi;
 
@@ -91,12 +104,8 @@ vec4 calc_adv_diff(vec4 S, ivec2 tcoord, float lat) {
     vec4 Sijm = safeRead(tcoord + ivec2( 0, -1));
 
     // compute dN/dt
-//    vec4 dNdt = vec4(0);
-//    vec4 dNdtAX = ((Sipj * Sipj.aaaa - Simj * Simj.aaaa) / (2.0 * dx));
-//    vec4 dNdtAY = ((Sijp * Sijp.bbbb - Sijm * Sijm.bbbb) / (2.0 * dy));
     vec4 dNdtKX = ((Simj + Sipj - (2.0f * S)) * (Kxx / (dx * dx)));
     vec4 dNdtKY = ((Sijm + Sijp - (2.0f * S)) * (Kyy / (dy * dy)));
-//    vec4 dNdt = - (dNdtAX + dNdtAY + dNdtKX + dNdtKY);
     vec4 dNdt = (dNdtKX + dNdtKY);
 
     return vec4(dNdt.r, dNdt.g, 0.0, 0.0);
@@ -110,23 +119,29 @@ void main() {
 
     // coordinates
     float day = t;
-    float lat = (float(gl_GlobalInvocationID.y + 0.5) / float(gl_NumWorkGroups.y) * 180.0f) - 90.0f;
-    float lon = (float(gl_GlobalInvocationID.x) / float(gl_NumWorkGroups.x) * 360.0f);
-
-    // pressure
-    // float Pa = NA * kB * value.r; // (2.22)
+    float lat = (float(gl_GlobalInvocationID.y + 0.5) / float(gl_NumWorkGroups.y * gl_WorkGroupSize.y) * 180.0f) - 90.0f;
+    float lon = (float(gl_GlobalInvocationID.x + 0.5) / float(gl_NumWorkGroups.x * gl_WorkGroupSize.x) * 360.0f);
 
     // compute instant insolation
     float Q = calc_Q(lat, lon, day);
 
     // compute albedo
     float alpha = calc_albedo(value.r, lat);
+    clamp(alpha, 0, 1);
+
+    // TEMPORARY
+    value.a = alpha;
+    value.b = Q;
+
+    // calculate water depth
+    float C_val = calc_Cval(30.0);
 
     // compute temperature
-    value.r = value.r + calc_Ts(alpha, Q, value.r) * (dt * secs_per_day);
+    value.r = value.r + calc_Ts(alpha, Q, value.r, C_val) * (dt * secs_per_day);
 
     // calculate advdiff
-    value.rg += (calc_adv_diff(value, texelCoord, lat).rg * dt * secs_per_day);
+    value.rg += (calc_adv_diff(value, texelCoord, C_val, lat).rg * dt * secs_per_day);
 
+//    imageStore(stateOut, texelCoord, texelCoord);
     imageStore(stateOut, texelCoord, value);
 }
