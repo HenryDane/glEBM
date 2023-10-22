@@ -198,7 +198,7 @@ int main(int argc, char *argv[]) {
 
     float t = 0.0f;
 //    float dt = 1e-1f;
-    float dt = (1.0f / 24.0f);
+    float dt = (1.0f / 24.0f) * (1 / 12.0f); // 5 mins
 
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {
@@ -256,10 +256,11 @@ int main(int argc, char *argv[]) {
                 &qmax, &qmin, &umax, &umin, &vmax, &vmin);
         }
 
-        if (t > days_per_year * 3) {
+        if (t > days_per_year * 3.0) {
             const char* path = "result.csv";
             fetch_and_dump_state(surf_texture, model_size_x, model_size_y, path);
             glfwSetWindowShouldClose(window, GLFW_TRUE);
+            break;
         }
 
         // frame counter

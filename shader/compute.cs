@@ -2,8 +2,6 @@
 
 layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
-//layout(rgba32f, binding = 0) uniform image2D stateIn;
-//layout(rgba32f, binding = 1) uniform image2D stateOut;
 layout(rgba32f, binding = 0) uniform image2D stateOut;
 layout(binding = 1) uniform sampler2D insol_LUT;
 
@@ -11,8 +9,8 @@ layout(location = 0) uniform float t;
 layout(location = 1) uniform float dt;
 
 // physical constants
-const float pi            =    3.14159265;
-const float days_per_year =  365.2422f;
+const float pi            =     3.14159265;
+const float days_per_year =   365.2422f;
 const float secs_per_day  = 86400.0f;
 
 // albedo parameters
@@ -66,7 +64,7 @@ void main() {
     vec4 value = imageLoad(stateOut, texelCoord);
 
     // coordinates
-    float day = t;
+    float day = t; //mod(t, days_per_year);
     float lat = (float(gl_GlobalInvocationID.y + 0.5) / float(gl_NumWorkGroups.y * gl_WorkGroupSize.y) * 180.0f) - 90.0f;
     float lon = (float(gl_GlobalInvocationID.x + 0.5) / float(gl_NumWorkGroups.x * gl_WorkGroupSize.x) * 360.0f);
 
@@ -81,19 +79,13 @@ void main() {
     value.a = alpha;
     value.b = Q;
 
-    // TEMPORARY
-    value.a = alpha;
-    value.b = Q;
-
     // calculate water depth
     float C_val = calc_Cval(30.0);
 
     // compute temperature
-    value.r = value.r + calc_Ts(alpha, Q, value.r, C_val) * (dt * secs_per_day);
+    float dTdt = calc_Ts(alpha, Q, value.r, C_val);
+    value.g = dTdt;
+    value.r = value.r + (dTdt * dt * secs_per_day);
 
-    // calculate advdiff
-//    value.rg += (calc_adv_diff(value, texelCoord, C_val, lat).rg * dt * secs_per_day);
-
-//    imageStore(stateOut, texelCoord, texelCoord);
     imageStore(stateOut, texelCoord, value);
 }
