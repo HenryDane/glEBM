@@ -1,6 +1,6 @@
 #version 430 core
 
-layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
 //layout(rgba32f, binding = 0) uniform image2D stateIn;
 //layout(rgba32f, binding = 1) uniform image2D stateOut;
@@ -32,7 +32,7 @@ float calcP2(float x) {
 }
 
 float calc_Cval(float depth) {
-    return 4.0e3 * 1.0e3 * depth;
+    return 4181.3 * 1.0e3 * depth;
 }
 
 float calc_Q(float lat, float lon, float day) {
@@ -67,8 +67,8 @@ void main() {
 
     // coordinates
     float day = t;
-    float lat = (float(gl_GlobalInvocationID.y + 0.5) / float(gl_NumWorkGroups.y) * 180.0f) - 90.0f;
-    float lon = (float(gl_GlobalInvocationID.x) / float(gl_NumWorkGroups.x) * 360.0f);
+    float lat = (float(gl_GlobalInvocationID.y + 0.5) / float(gl_NumWorkGroups.y * gl_WorkGroupSize.y) * 180.0f) - 90.0f;
+    float lon = (float(gl_GlobalInvocationID.x + 0.5) / float(gl_NumWorkGroups.x * gl_WorkGroupSize.x) * 360.0f);
 
     // compute instant insolation
     float Q = calc_Q(lat, lon, day);
@@ -81,9 +81,12 @@ void main() {
     value.a = alpha;
     value.b = Q;
 
+    // TEMPORARY
+    value.a = alpha;
+    value.b = Q;
+
     // calculate water depth
-    float depth = mix(30.0, 0.1, lfrac);
-    float C_val = calc_Cval(depth);
+    float C_val = calc_Cval(30.0);
 
     // compute temperature
     value.r = value.r + calc_Ts(alpha, Q, value.r, C_val) * (dt * secs_per_day);
@@ -91,5 +94,6 @@ void main() {
     // calculate advdiff
 //    value.rg += (calc_adv_diff(value, texelCoord, C_val, lat).rg * dt * secs_per_day);
 
+//    imageStore(stateOut, texelCoord, texelCoord);
     imageStore(stateOut, texelCoord, value);
 }

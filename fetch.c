@@ -77,7 +77,7 @@ void fetch_and_dump_state(unsigned int surf_texture, int nx, int ny,
     file = fopen(fname, "w");
     for (int y = 0; y < ny; y++) {
         for (int x = 0; x < nx; x++) {
-            float lon = (((float)x) / ((float)nx) * 360.0f);
+            float lon = (((float)(x + 0.5)) / ((float)nx) * 360.0f);
             fprintf(file, "%.4e, ", lon);
         }
         fprintf(file, "\n");
@@ -91,6 +91,32 @@ void fetch_and_dump_state(unsigned int surf_texture, int nx, int ny,
         for (int x = 0; x < nx; x++) {
             int i = (y * nx) + x;
             float temp = data[(i * 4) + 0];
+            fprintf(file, "%.4e, ", temp);
+        }
+        fprintf(file, "\n");
+    }
+    fclose(file);
+
+    // print temperature values
+    sprintf(fname, "results/albedos_%dx%d.csv", nx, ny);
+    file = fopen(fname, "w");
+    for (int y = 0; y < ny; y++) {
+        for (int x = 0; x < nx; x++) {
+            int i = (y * nx) + x;
+            float temp = data[(i * 4) + 3];
+            fprintf(file, "%.4e, ", temp);
+        }
+        fprintf(file, "\n");
+    }
+    fclose(file);
+
+    // print temperature values
+    sprintf(fname, "results/Qs_%dx%d.csv", nx, ny);
+    file = fopen(fname, "w");
+    for (int y = 0; y < ny; y++) {
+        for (int x = 0; x < nx; x++) {
+            int i = (y * nx) + x;
+            float temp = data[(i * 4) + 2];
             fprintf(file, "%.4e, ", temp);
         }
         fprintf(file, "\n");
