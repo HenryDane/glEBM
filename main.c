@@ -197,7 +197,8 @@ int main(int argc, char *argv[]) {
     glBindTexture(GL_TEXTURE_2D, solat_LUT);
 
     float t = 0.0f;
-    float dt = 1e-1f;
+//    float dt = 1e-1f;
+    float dt = (1.0f / 24.0f);
 
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {
@@ -241,12 +242,12 @@ int main(int argc, char *argv[]) {
 #ifndef REDUCED_OUTPUT
 //            printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
 //                currentFrame * speed, delta * speed * 24.0f * 60.0f, 1.0f / delta);
-            if (t <= 365.24f) {
+            if (t <= days_per_year) {
                 printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
                     t, dt * 24.0f * 60.0f, 1.0f / delta);
             } else {
                 printf("fc=%d t=%.4f (yr) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
-                    t / 365.24f, dt * 24.0f * 60.0f, 1.0f / delta);
+                    t / days_per_year, dt * 24.0f * 60.0f, 1.0f / delta);
             }
 #else
             printf("%.4e ", currentFrame * speed);
@@ -255,7 +256,7 @@ int main(int argc, char *argv[]) {
                 &qmax, &qmin, &umax, &umin, &vmax, &vmin);
         }
 
-        if (t > 365.24f * 3) {
+        if (t > days_per_year * 3) {
             const char* path = "result.csv";
             fetch_and_dump_state(surf_texture, model_size_x, model_size_y, path);
             glfwSetWindowShouldClose(window, GLFW_TRUE);
