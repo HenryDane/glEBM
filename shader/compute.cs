@@ -14,8 +14,10 @@ const float days_per_year =   365.2422f;
 const float secs_per_day  = 86400.0f;
 
 // albedo parameters
-const float a0 =   0.33f;
-const float a2 =   0.25f;
+const float a0 =   0.3f;
+const float a2 =   0.078f;
+const float ai =   0.62f;
+const float Tf = 263.15f;
 
 // OLR parameters
 const float olr_A = 210.0f;
@@ -48,7 +50,11 @@ float calc_Q(float lat, float lon, float day) {
 
 float calc_albedo(float Ts, float lat) {
     float phi = deg2rad(lat);
-    return a0 + a2 * calcP2(sin(phi));
+    float is_freezing = float(Tf > Ts);
+    float albedo = 0;
+    albedo += is_freezing * ai;
+    albedo += (1 - is_freezing) * (a0 + a2 * calcP2(phi));
+    return albedo;
 }
 
 float calc_Ts(float albedo, float Q, float T_old, float C_val) {
