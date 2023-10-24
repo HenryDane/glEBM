@@ -12,12 +12,13 @@ layout(location = 1) uniform float dt;
 const float pi            =     3.14159265;
 const float days_per_year =   365.2422f;
 const float secs_per_day  = 86400.0f;
+const float Re            =     6.373e6f;
 
 // albedo parameters
-const float a0 =   0.3f;
-const float a2 =   0.078f;
-const float ai =   0.62f;
-const float Tf = 263.15f;
+//const float a0 =   0.3f;
+//const float a2 =   0.078f;
+//const float ai =   0.62f;
+//const float Tf = 263.15f;
 
 // OLR parameters
 const float olr_A = 210.0f;
@@ -50,17 +51,89 @@ float calc_Q(float lat, float lon, float day) {
 
 float calc_albedo(float Ts, float lat) {
     float phi = deg2rad(lat);
-    float is_freezing = float(Tf > Ts);
-    float albedo = 0;
-    albedo += is_freezing * ai;
-    albedo += (1 - is_freezing) * (a0 + a2 * calcP2(phi));
-    return albedo;
+//    float is_freezing = float(Tf > Ts);
+//    float albedo = 0;
+//    albedo += is_freezing * ai;
+//    albedo += (1 - is_freezing) * (a0 + a2 * calcP2(phi));
+//    return albedo;
+
+    const float a0 =   0.33f;
+const float a2 =   0.25f;
+    return a0 + a2 * calcP2(sin(phi));
 }
 
 float calc_Ts(float albedo, float Q, float T_old, float C_val) {
     float ASR = (1 - albedo) * Q;
     float OLR = olr_A + (olr_B * (T_old - 273.15));
     return (1 / C_val) * (ASR - OLR);
+}
+
+float calc_clamp_fact(ivec2 coord) {
+    ivec2 imgsize = imageSize(stateOut);
+    float clamp_fact = //float(coord.x >= 0) + float(coord.x < imgsize.x) +
+        float(coord.y >= 0) + float(coord.y < imgsize.y);
+    return clamp(1 - clamp_fact, 0, 1);
+}
+
+vec4 safeRead(ivec2 coord) {
+    ivec2 imgsize = imageSize(stateOut);
+//    coord.y = clamp(coord.y, 0, imgsize.y - 1);
+//    ivec2 tc = ivec2(mod(coord + imgsize, imageSize(stateOut)));
+//
+//    return imageLoad(stateOut, tc);
+    float clamp_fact = calc_clamp_fact(coord);
+    return mix(vec4(285.3, 0, 0, 0), imageLoad(stateOut, coord), clamp_fact);
+//    ivec2 clamped_coord = ivec2(coord.x, clamp(coord.y, 0, imgsize.y-1));
+//    vec4 clamped = imageLoad(stateOut, clamped_coord);
+//    return mix(vec4(clamped.r, 0, 0, 0), imageLoad(stateOut, coord), clamp_fact);
+}
+
+vec4 calc_adv_diff(vec4 S, ivec2 tcoord, float C_val, float lat) {
+    ivec2 imgsize = imageSize(stateOut);
+    // define diffusivity
+    const float D = 0.555;
+    float K = D / C_val * Re * Re;
+
+    // calculate dlambda, dphi
+    float dlambda = 2.0 * pi / float(gl_NumWorkGroups.x * gl_WorkGroupSize.x);
+    float dphi    = pi / float(gl_NumWorkGroups.y * gl_WorkGroupSize.y);
+
+    // calculate dx, dy from (4.1)
+    float dx = Re * cos(deg2rad(lat)) * dlambda;
+    float dy = Re * dphi;
+
+    // get nearby elements
+    vec4 Sipj  = safeRead(tcoord + ivec2( 1,  0));
+    vec4 Simj  = safeRead(tcoord + ivec2(-1,  0));
+    vec4 Sijp  = safeRead(tcoord + ivec2( 0,  1));
+    vec4 Sijpp = safeRead(tcoord + ivec2( 0,  2));
+    vec4 Sijm  = safeRead(tcoord + ivec2( 0, -1));
+    vec4 Sijmm = safeRead(tcoord + ivec2( 0, -2));
+
+    // 1 if N/S edge
+    float calc_1x = float(tcoord.y > 0) * float(tcoord.y < imgsize.y - 1);
+//    calc_1x = 1 - calc_1x;
+
+    vec4 dNdtKX = Sipj + Simj - S - S;
+    dNdtKX *= K;
+    dNdtKX /= dx;
+    dNdtKX /= dx;
+    dNdtKX /= (dt * secs_per_day);
+
+//    vec4 dNdtKY = Sijp + Sijm - S - S;
+    vec4 dNdtKY  = Sijp + Sijm - S - S;
+    dNdtKY *= K;
+    dNdtKY /= dy;
+    dNdtKY /= dy;
+    dNdtKY /= (dt * secs_per_day);
+
+//    vec4 dNdt = dNdtKX + dNdtKY;
+    vec4 dNdt = dNdtKY;
+//    vec4 dNdt = K * dNdtKY;
+//    dNdt = dNdt - S;
+//    dNdt = dNdt / (dt * secs_per_day);
+
+    return dNdt;
 }
 
 void main() {
@@ -79,7 +152,6 @@ void main() {
 
     // compute albedo
     float alpha = calc_albedo(value.r, lat);
-    //clamp(alpha, 0, 1);
 
     // emit albedo as a and insol as b
     value.a = alpha;
@@ -89,9 +161,12 @@ void main() {
     float C_val = calc_Cval(30.0);
 
     // compute temperature
-    float dTdt = calc_Ts(alpha, Q, value.r, C_val);
+    value.r += calc_Ts(alpha, Q, value.r, C_val) * dt * secs_per_day;
+
+    // adv diff
+    float dTdt = calc_adv_diff(value, texelCoord, C_val, lat).r;
     value.g = dTdt;
-    value.r = value.r + (dTdt * dt * secs_per_day);
+    value.r += dTdt * dt * secs_per_day;
 
     imageStore(stateOut, texelCoord, value);
 }
