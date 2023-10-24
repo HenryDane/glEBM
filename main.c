@@ -198,8 +198,8 @@ int main(int argc, char *argv[]) {
 
     float t = 0.0f;
 //    float dt = 1e-1f;
-//    float dt = (1.0f / 24.0f) * (1 / 12.0f); // 5 mins
-    float dt = (1.0f / 24.0f); // 5 mins
+    float dt = (1.0f / 24.0f) * (1 / 12.0f); // 5 mins
+//    float dt = (1.0f / 24.0f); // 5 mins
 
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {

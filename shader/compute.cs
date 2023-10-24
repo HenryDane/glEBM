@@ -15,10 +15,10 @@ const float secs_per_day  = 86400.0f;
 const float Re            =     6.373e6f;
 
 // albedo parameters
-//const float a0 =   0.3f;
-//const float a2 =   0.078f;
-//const float ai =   0.62f;
-//const float Tf = 263.15f;
+const float a0 =   0.3f;
+const float a2 =   0.078f;
+const float ai =   0.62f;
+const float Tf = 263.15f;
 
 // OLR parameters
 const float olr_A = 210.0f;
@@ -51,15 +51,15 @@ float calc_Q(float lat, float lon, float day) {
 
 float calc_albedo(float Ts, float lat) {
     float phi = deg2rad(lat);
-//    float is_freezing = float(Tf > Ts);
-//    float albedo = 0;
-//    albedo += is_freezing * ai;
-//    albedo += (1 - is_freezing) * (a0 + a2 * calcP2(phi));
-//    return albedo;
+    float is_freezing = float(Tf > Ts);
+    float albedo = 0;
+    albedo += is_freezing * ai;
+    albedo += (1 - is_freezing) * (a0 + a2 * calcP2(phi));
+    return albedo;
 
-    const float a0 =   0.33f;
-const float a2 =   0.25f;
-    return a0 + a2 * calcP2(sin(phi));
+//    const float a0 =   0.33f;
+//    const float a2 =   0.25f;
+//    return a0 + a2 * calcP2(sin(phi));
 }
 
 float calc_Ts(float albedo, float Q, float T_old, float C_val) {
@@ -68,72 +68,46 @@ float calc_Ts(float albedo, float Q, float T_old, float C_val) {
     return (1 / C_val) * (ASR - OLR);
 }
 
-float calc_clamp_fact(ivec2 coord) {
-    ivec2 imgsize = imageSize(stateOut);
-    float clamp_fact = //float(coord.x >= 0) + float(coord.x < imgsize.x) +
-        float(coord.y >= 0) + float(coord.y < imgsize.y);
-    return clamp(1 - clamp_fact, 0, 1);
-}
-
-vec4 safeRead(ivec2 coord) {
-    ivec2 imgsize = imageSize(stateOut);
-//    coord.y = clamp(coord.y, 0, imgsize.y - 1);
-//    ivec2 tc = ivec2(mod(coord + imgsize, imageSize(stateOut)));
-//
-//    return imageLoad(stateOut, tc);
-    float clamp_fact = calc_clamp_fact(coord);
-    return mix(vec4(285.3, 0, 0, 0), imageLoad(stateOut, coord), clamp_fact);
-//    ivec2 clamped_coord = ivec2(coord.x, clamp(coord.y, 0, imgsize.y-1));
-//    vec4 clamped = imageLoad(stateOut, clamped_coord);
-//    return mix(vec4(clamped.r, 0, 0, 0), imageLoad(stateOut, coord), clamp_fact);
-}
-
-vec4 calc_adv_diff(vec4 S, ivec2 tcoord, float C_val, float lat) {
-    ivec2 imgsize = imageSize(stateOut);
-    // define diffusivity
+vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C) {
     const float D = 0.555;
-    float K = D / C_val * Re * Re;
+    ivec2 imgsize = imageSize(stateOut);
 
-    // calculate dlambda, dphi
-    float dlambda = 2.0 * pi / float(gl_NumWorkGroups.x * gl_WorkGroupSize.x);
-    float dphi    = pi / float(gl_NumWorkGroups.y * gl_WorkGroupSize.y);
-
-    // calculate dx, dy from (4.1)
-    float dx = Re * cos(deg2rad(lat)) * dlambda;
+    float phi = deg2rad(lat);
+    float dphi = pi / float(gl_NumWorkGroups.y * gl_WorkGroupSize.y);
     float dy = Re * dphi;
 
-    // get nearby elements
-    vec4 Sipj  = safeRead(tcoord + ivec2( 1,  0));
-    vec4 Simj  = safeRead(tcoord + ivec2(-1,  0));
-    vec4 Sijp  = safeRead(tcoord + ivec2( 0,  1));
-    vec4 Sijpp = safeRead(tcoord + ivec2( 0,  2));
-    vec4 Sijm  = safeRead(tcoord + ivec2( 0, -1));
-    vec4 Sijmm = safeRead(tcoord + ivec2( 0, -2));
+    vec4 N_im1   = imageLoad(stateOut, coord + ivec2(0, -1));
+    vec4 N_ip1   = imageLoad(stateOut, coord + ivec2(0,  1));
 
-    // 1 if N/S edge
-    float calc_1x = float(tcoord.y > 0) * float(tcoord.y < imgsize.y - 1);
-//    calc_1x = 1 - calc_1x;
+    float X_i    = phi * Re;
+    float X_ip1  = X_i + dy;
+    float X_im1  = X_i - dy;
 
-    vec4 dNdtKX = Sipj + Simj - S - S;
-    dNdtKX *= K;
-    dNdtKX /= dx;
-    dNdtKX /= dx;
-    dNdtKX /= (dt * secs_per_day);
+    float Xb_j   = X_i - (dy / 2);
+    float Xb_jp1 = X_i + (dy / 2);
 
-//    vec4 dNdtKY = Sijp + Sijm - S - S;
-    vec4 dNdtKY  = Sijp + Sijm - S - S;
-    dNdtKY *= K;
-    dNdtKY /= dy;
-    dNdtKY /= dy;
-    dNdtKY /= (dt * secs_per_day);
+    float Wb_j   = cos(phi - (dphi / 2)) * float(coord.y > 0);
+    float Wb_jp1 = cos(phi + (dphi / 2)) * float(coord.y < imgsize.y - 1);
 
-//    vec4 dNdt = dNdtKX + dNdtKY;
-    vec4 dNdt = dNdtKY;
-//    vec4 dNdt = K * dNdtKY;
-//    dNdt = dNdt - S;
-//    dNdt = dNdt / (dt * secs_per_day);
+    float W_i    = cos(phi);
 
-    return dNdt;
+    float K_j    = D / C * Re * Re;
+    float K_jp1  = D / C * Re * Re;
+
+    float U_j    = 0;
+    float U_jp1  = 0;
+
+    float S_i    = 0;
+
+    float Tl = (Wb_j / W_i) * (K_j + U_j * (X_i - Xb_j)) / ((Xb_jp1 - Xb_j) * (X_i - X_im1));
+
+    float Tm = 0;
+    Tm -= (Wb_jp1 * (K_jp1 + U_jp1 * (X_ip1 - Xb_jp1))) / (W_i * (Xb_jp1 - Xb_j) * (X_ip1 - X_i  ));
+    Tm -= (Wb_j   * (K_j   - U_j   * (Xb_j  - X_im1 ))) / (W_i * (Xb_jp1 - Xb_j) * (X_i   - X_im1));
+
+    float Tu = (Wb_jp1 / W_i) * (K_jp1 - U_jp1 * (Xb_jp1 - X_i)) / ((Xb_jp1 - Xb_j) * (X_ip1 - X_i));
+
+    return (Tl * N_im1 + Tm * N + Tu * N_ip1) + S_i;
 }
 
 void main() {
@@ -164,7 +138,7 @@ void main() {
     value.r += calc_Ts(alpha, Q, value.r, C_val) * dt * secs_per_day;
 
     // adv diff
-    float dTdt = calc_adv_diff(value, texelCoord, C_val, lat).r;
+    float dTdt = calc_merid_advdiff(value, texelCoord, lat, C_val).r;
     value.g = dTdt;
     value.r += dTdt * dt * secs_per_day;
 
