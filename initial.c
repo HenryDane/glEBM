@@ -16,7 +16,7 @@ float* make_2d_initial(int nx, int ny) {
     const float Ti   = 293.15;
     const float c0H0 =   2.0e8;
     const float T0   =  11.0;
-    const float T2   = -10.0;
+    const float T2   = -20.0;
 
     for (size_t y = 0; y < ny; y++) {
         for (size_t x = 0; x < nx; x++) {

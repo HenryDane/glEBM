@@ -140,7 +140,7 @@ void main() {
     ASR       *= corr;
     float OLR  = calc_OLR(value.r, olr_A);
     float dEdt = ASR - OLR + ice_FB;
-    value.g   += dEdt;
+    value.g   += dEdt * dt * secs_per_day;
 
     // compute h_ice
     float h_ice = -value.g / ice_Li * float(value.g < 0);
