@@ -11,11 +11,11 @@ void mmm(float x, float* min, float* max, float* mean) {
 }
 
 // physical constants
-const float pi            =    3.14159265;
-const float days_per_year =  365.0f;
-const float S0            = 1367.0f;
+const float pi            =    3.14159265f;
+const float days_per_year =  365.2422f;
+const float S0            = 1365.2f;
 
 // orbital parameters
-const float ecc       =   0.01724f;
-const float obliquity =  23.45f;
-const float long_peri = 281.4f;
+const float ecc       =   0.017236f;
+const float obliquity =  23.446f;
+const float long_peri = 281.37f;

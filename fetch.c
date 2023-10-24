@@ -36,9 +36,9 @@ void fetch_2d_state(unsigned int texture, int nx, int ny, float* Tmax,
 
 #ifndef REDUCED_OUTPUT
     printf("  Temperature  min=%.4f max=%.4f mean=%.4f\n", *Tmin, *Tmax, Tmean);
-    printf("  Vapor MMR    min=%.4f max=%.4f mean=%.4f\n", *qmin, *qmax, qmean);
-    printf("  Merid. Wind  min=%.4e max=%.4e mean=%.4e\n", *umin, *umax, umean);
-    printf("  Zonal Wind   min=%.4e max=%.4e mean=%.4e\n", *vmin, *vmax, vmean);
+    printf("  dT/dt        min=%.4f max=%.4f mean=%.4f\n", *qmin, *qmax, qmean);
+    printf("  Insolation   min=%.4e max=%.4e mean=%.4e\n", *umin, *umax, umean);
+    printf("  Albedo       min=%.4e max=%.4e mean=%.4e\n", *vmin, *vmax, vmean);
 #else
     printf("%.4f %.4f %.4f\n", *Tmin, *Tmax, Tmean);
 #endif // REDUCED_OUTPUT
@@ -117,6 +117,19 @@ void fetch_and_dump_state(unsigned int surf_texture, int nx, int ny,
         for (int x = 0; x < nx; x++) {
             int i = (y * nx) + x;
             float temp = data[(i * 4) + 2];
+            fprintf(file, "%.4e, ", temp);
+        }
+        fprintf(file, "\n");
+    }
+    fclose(file);
+
+    // print temperature values
+    sprintf(fname, "results/state_b_%dx%d.csv", nx, ny);
+    file = fopen(fname, "w");
+    for (int y = 0; y < ny; y++) {
+        for (int x = 0; x < nx; x++) {
+            int i = (y * nx) + x;
+            float temp = data[(i * 4) + 1];
             fprintf(file, "%.4e, ", temp);
         }
         fprintf(file, "\n");

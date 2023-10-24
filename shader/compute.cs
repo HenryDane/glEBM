@@ -2,8 +2,6 @@
 
 layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
-//layout(rgba32f, binding = 0) uniform image2D stateIn;
-//layout(rgba32f, binding = 1) uniform image2D stateOut;
 layout(rgba32f, binding = 0) uniform image2D stateOut;
 layout(binding = 1) uniform sampler2D insol_LUT;
 
@@ -11,18 +9,10 @@ layout(location = 0) uniform float t;
 layout(location = 1) uniform float dt;
 
 // physical constants
-const float pi            =    3.14159265;
-const float days_per_year =  365.0f;
+const float pi            =     3.14159265;
+const float days_per_year =   365.2422f;
 const float secs_per_day  = 86400.0f;
-const float S0            = 1367.0f;
-const float sigma         = 5.67e-8f;
-const float Re            = 6.378e6f;
-const float omega         = 7.292e-5;
-
-// orbital parameters
-const float ecc       =   0.01724f;
-const float obliquity =  23.45f;
-const float long_peri = 281.4f;
+const float Re            =     6.373e6f;
 
 // albedo parameters
 const float a0 =   0.3f;
@@ -30,10 +20,9 @@ const float a2 =   0.078f;
 const float ai =   0.62f;
 const float Tf = 263.15f;
 
-// boltzmann parameters
-const float bm_A = 210.0f;
-const float bm_B =   2.0f;
-const float tau  =   0.61f;
+// OLR parameters
+const float olr_A = 210.0f;
+const float olr_B =   2.0f;
 
 float deg2rad(float x) {
     return pi / 180.0f * x;
@@ -48,77 +37,87 @@ float calc_Cval(float depth) {
 }
 
 float calc_Q(float lat, float lon, float day) {
-    vec2 coord  = vec2(day / 365.0f, (lat + 90.0f) / 180.0f);
-    vec4 soldat = texture(insol_LUT, coord); // solar_lon, S0*b2/a2, H0, delta
+    vec2 coord  = vec2(day / days_per_year, (lat + 90.0f) / 180.0f);
+    vec4 soldat = texture(insol_LUT, coord); // 0.0f, S0*b2/a2, 0.0f, delta
 
     float phi    = deg2rad(lat);
     float h      = (mod((mod(day, 1.0) + (lon / 360)), 1.0) - 0.5) * 2 * pi;
     float coszen = sin(phi)*sin(soldat.a) + cos(phi)*cos(soldat.a)*cos(h);
-    float Fsw    = (abs(h) < soldat.b) ? soldat.g * coszen : 0.0f;
+    float Fsw    = soldat.g * coszen;
+    Fsw          = Fsw * float(Fsw > 0);
 
-    return clamp(Fsw, 0.0f, S0);
+    return Fsw;
 }
 
 float calc_albedo(float Ts, float lat) {
     float phi = deg2rad(lat);
+    float is_freezing = float(Tf > Ts);
+    float albedo = 0;
+    albedo += is_freezing * ai;
+    albedo += (1 - is_freezing) * (a0 + a2 * calcP2(phi));
+    return albedo;
 
-    return (Ts > Tf) ? a0 + a2 * calcP2(sin(phi)) : ai;
+//    const float a0 =   0.33f;
+//    const float a2 =   0.25f;
+//    return a0 + a2 * calcP2(sin(phi));
 }
 
 float calc_Ts(float albedo, float Q, float T_old, float C_val) {
-    return (((1 - albedo) * Q) - (tau * sigma * T_old * T_old * T_old * T_old)) / C_val;
+    float ASR = (1 - albedo) * Q;
+    float OLR = olr_A + (olr_B * (T_old - 273.15));
+    return (1 / C_val) * (ASR - OLR);
 }
 
-float calc_f_moist(float T) {
-    const float r = 0.5; // 50%
-
-    return 0.0f;
-}
-
-vec4 safeRead(ivec2 coord) {
+vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C) {
+    const float D = 0.555;
     ivec2 imgsize = imageSize(stateOut);
-    coord.y = clamp(coord.y, 0, imgsize.y - 1);
-    ivec2 tc = ivec2(mod(coord + imgsize, imageSize(stateOut)));
 
-    return imageLoad(stateOut, tc);
-}
-
-vec4 calc_adv_diff(vec4 S, ivec2 tcoord, float C_val, float lat) {
-    // define diffusivities for temp and humidity
-    const float D = 0.55;
-    const float K = D / C_val;
-    //const vec4 Kxx = vec4(Kt, 1.0, 0.0, 0.0);
-    vec4 Kxx = vec4(K, 1.0, 0.0, 0.0);
-    //const vec4 Kyy = vec4(Kt, 1.0, 0.0, 0.0);
-    vec4 Kyy = vec4(K, 1.0, 0.0, 0.0);
-
-    // calculate dx, dy from (4.1)
-    float dlambda = 2.0 * pi / float(gl_NumWorkGroups.x * gl_WorkGroupSize.x);
+    float phi = deg2rad(lat);
     float dphi = pi / float(gl_NumWorkGroups.y * gl_WorkGroupSize.y);
-    float dx = Re * cos(deg2rad(lat)) * dlambda;
     float dy = Re * dphi;
 
-    vec4 Sipj = safeRead(tcoord + ivec2( 1,  0));
-    vec4 Simj = safeRead(tcoord + ivec2(-1,  0));
-    vec4 Sijp = safeRead(tcoord + ivec2( 0,  1));
-    vec4 Sijm = safeRead(tcoord + ivec2( 0, -1));
+    vec4 N_im1   = imageLoad(stateOut, coord + ivec2(0, -1));
+    vec4 N_ip1   = imageLoad(stateOut, coord + ivec2(0,  1));
 
-    // compute dN/dt
-    vec4 dNdtKX = ((Simj + Sipj - (2.0f * S)) * (Kxx / (dx * dx)));
-    vec4 dNdtKY = ((Sijm + Sijp - (2.0f * S)) * (Kyy / (dy * dy)));
-    vec4 dNdt = (dNdtKX + dNdtKY);
+    float X_i    = phi * Re;
+    float X_ip1  = X_i + dy;
+    float X_im1  = X_i - dy;
 
-    return vec4(dNdt.r, dNdt.g, 0.0, 0.0);
+    float Xb_j   = X_i - (dy / 2);
+    float Xb_jp1 = X_i + (dy / 2);
+
+    float Wb_j   = cos(phi - (dphi / 2)) * float(coord.y > 0);
+    float Wb_jp1 = cos(phi + (dphi / 2)) * float(coord.y < imgsize.y - 1);
+
+    float W_i    = cos(phi);
+
+    float K_j    = D / C * Re * Re;
+    float K_jp1  = D / C * Re * Re;
+
+    float U_j    = 0;
+    float U_jp1  = 0;
+
+    float S_i    = 0;
+
+    float Tl = (Wb_j / W_i) * (K_j + U_j * (X_i - Xb_j)) / ((Xb_jp1 - Xb_j) * (X_i - X_im1));
+
+    float Tm = 0;
+    Tm -= (Wb_jp1 * (K_jp1 + U_jp1 * (X_ip1 - Xb_jp1))) / (W_i * (Xb_jp1 - Xb_j) * (X_ip1 - X_i  ));
+    Tm -= (Wb_j   * (K_j   - U_j   * (Xb_j  - X_im1 ))) / (W_i * (Xb_jp1 - Xb_j) * (X_i   - X_im1));
+
+    float Tu = (Wb_jp1 / W_i) * (K_jp1 - U_jp1 * (Xb_jp1 - X_i)) / ((Xb_jp1 - Xb_j) * (X_ip1 - X_i));
+
+    return (Tl * N_im1 + Tm * N + Tu * N_ip1) + S_i;
 }
 
 void main() {
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
-    // Ts, q, u, v
-    //  r, g, b, a
+    // Ts, q, alpha, Q
+    //  r, g,     b, a
     vec4 value = imageLoad(stateOut, texelCoord);
 
     // coordinates
-    float day = t;
+    float day = t; //mod(t, days_per_year);
     float lat = (float(gl_GlobalInvocationID.y + 0.5) / float(gl_NumWorkGroups.y * gl_WorkGroupSize.y) * 180.0f) - 90.0f;
     float lon = (float(gl_GlobalInvocationID.x + 0.5) / float(gl_NumWorkGroups.x * gl_WorkGroupSize.x) * 360.0f);
 
@@ -127,9 +126,8 @@ void main() {
 
     // compute albedo
     float alpha = calc_albedo(value.r, lat);
-    clamp(alpha, 0, 1);
 
-    // TEMPORARY
+    // emit albedo as a and insol as b
     value.a = alpha;
     value.b = Q;
 
@@ -137,11 +135,12 @@ void main() {
     float C_val = calc_Cval(30.0);
 
     // compute temperature
-    value.r = value.r + calc_Ts(alpha, Q, value.r, C_val) * (dt * secs_per_day);
+    value.r += calc_Ts(alpha, Q, value.r, C_val) * dt * secs_per_day;
 
-    // calculate advdiff
-    value.rg += (calc_adv_diff(value, texelCoord, C_val, lat).rg * dt * secs_per_day);
+    // adv diff
+    float dTdt = calc_merid_advdiff(value, texelCoord, lat, C_val).r;
+    value.g = dTdt;
+    value.r += dTdt * dt * secs_per_day;
 
-//    imageStore(stateOut, texelCoord, texelCoord);
     imageStore(stateOut, texelCoord, value);
 }
