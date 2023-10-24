@@ -13,6 +13,11 @@ const float pi            =     3.14159265;
 const float days_per_year =   365.2422f;
 const float secs_per_day  = 86400.0f;
 const float Re            =     6.373e6f;
+const float Rd            =   287.0;
+const float Rv            =   461.5;
+const float Lh_vap        =     2.5e6;
+const float gas_cp        =  1004.0;
+const float eps = Rd / Rv;
 
 // albedo parameters
 const float a0 =   0.3f;
@@ -56,10 +61,6 @@ float calc_albedo(float Ts, float lat) {
     albedo += is_freezing * ai;
     albedo += (1 - is_freezing) * (a0 + a2 * calcP2(phi));
     return albedo;
-
-//    const float a0 =   0.33f;
-//    const float a2 =   0.25f;
-//    return a0 + a2 * calcP2(sin(phi));
 }
 
 float calc_Ts(float albedo, float Q, float T_old, float C_val) {
@@ -68,7 +69,7 @@ float calc_Ts(float albedo, float Q, float T_old, float C_val) {
     return (1 / C_val) * (ASR - OLR);
 }
 
-vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C) {
+vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C, float f) {
     const float D = 0.555;
     ivec2 imgsize = imageSize(stateOut);
 
@@ -91,8 +92,8 @@ vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C) {
 
     float W_i    = cos(phi);
 
-    float K_j    = D / C * Re * Re;
-    float K_jp1  = D / C * Re * Re;
+    float K_j    = D / C * Re * Re * (1 + f);
+    float K_jp1  = D / C * Re * Re * (1 + f);
 
     float U_j    = 0;
     float U_jp1  = 0;
@@ -108,6 +109,28 @@ vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C) {
     float Tu = (Wb_jp1 / W_i) * (K_jp1 - U_jp1 * (Xb_jp1 - X_i)) / ((Xb_jp1 - Xb_j) * (X_ip1 - X_i));
 
     return (Tl * N_im1 + Tm * N + Tu * N_ip1) + S_i;
+}
+
+float calc_clausius_clapeyron(float T) {
+    float Tcel = T - 273.15;
+    return 6.112 * exp(17.67 * Tcel / (Tcel + 243.5));
+}
+
+float calc_qsat(float T, float P) {
+    // T in Kelvin
+    // P in hPa or mb
+    float es = calc_clausius_clapeyron(T);
+    return eps * es / (P - (1 - eps) * es);
+}
+
+float calc_f(float T) {
+    // could be an input later
+    const float RH     = 0.8f;
+    const float deltaT = 0.01;
+
+    float dqsdTs = (calc_qsat(T + deltaT / 2.0f, 1000.0) - calc_qsat(T - deltaT / 2.0f, 1000.0)) / deltaT;
+
+    return Lh_vap * RH * dqsdTs / gas_cp;
 }
 
 void main() {
@@ -137,8 +160,11 @@ void main() {
     // compute temperature
     value.r += calc_Ts(alpha, Q, value.r, C_val) * dt * secs_per_day;
 
+    // compute moist ampl factor
+    float f = calc_f(value.r);
+
     // adv diff
-    float dTdt = calc_merid_advdiff(value, texelCoord, lat, C_val).r;
+    float dTdt = calc_merid_advdiff(value, texelCoord, lat, C_val, f).r;
     value.g = dTdt;
     value.r += dTdt * dt * secs_per_day;
 
