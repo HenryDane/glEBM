@@ -36,9 +36,9 @@ void fetch_2d_state(unsigned int texture, int nx, int ny, float* Tmax,
 
 #ifndef REDUCED_OUTPUT
     printf("  Temperature  min=%.4f max=%.4f mean=%.4f\n", *Tmin, *Tmax, Tmean);
-    printf("  dT/dt        min=%.4f max=%.4f mean=%.4f\n", *qmin, *qmax, qmean);
-    printf("  Insolation   min=%.4e max=%.4e mean=%.4e\n", *umin, *umax, umean);
-    printf("  Albedo       min=%.4e max=%.4e mean=%.4e\n", *vmin, *vmax, vmean);
+    printf("  E            min=%.4f max=%.4f mean=%.4f\n", *qmin, *qmax, qmean);
+    printf("  h_ice        min=%.4e max=%.4e mean=%.4e\n", *umin, *umax, umean);
+    printf("  ice_A        min=%.4e max=%.4e mean=%.4e\n", *vmin, *vmax, vmean);
 #else
     printf("%.4f %.4f %.4f\n", *Tmin, *Tmax, Tmean);
 #endif // REDUCED_OUTPUT

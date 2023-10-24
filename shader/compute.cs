@@ -24,16 +24,23 @@ const float Tf = 263.15f;
 const float olr_A = 210.0f;
 const float olr_B =   2.0f;
 
+// ice parameters
+const float ice_FB     =   0;
+const float ice_B      =   2.83;
+const float ice_ki     =   1.981;
+const float ice_c0H0   =   2.0e8;
+const float ice_Li     =   3.0e8;
+const float ice_Tm     = 273.15;
+const float ice_alpha  =   0.56;
+const float ice_deltaa =   0.48;
+const float ice_ha     =   0.5;
+
 float deg2rad(float x) {
     return pi / 180.0f * x;
 }
 
 float calcP2(float x) {
     return 0.5 * (3 * x * x - 1.0);
-}
-
-float calc_Cval(float depth) {
-    return 4181.3 * 1.0e3 * depth;
 }
 
 float calc_Q(float lat, float lon, float day) {
@@ -56,16 +63,15 @@ float calc_albedo(float Ts, float lat) {
     albedo += is_freezing * ai;
     albedo += (1 - is_freezing) * (a0 + a2 * calcP2(phi));
     return albedo;
-
-//    const float a0 =   0.33f;
-//    const float a2 =   0.25f;
-//    return a0 + a2 * calcP2(sin(phi));
 }
 
-float calc_Ts(float albedo, float Q, float T_old, float C_val) {
+float calc_ASR(float albedo, float Q) {
     float ASR = (1 - albedo) * Q;
-    float OLR = olr_A + (olr_B * (T_old - 273.15));
-    return (1 / C_val) * (ASR - OLR);
+    return ASR;
+}
+
+float calc_OLR(float T, float A) {
+    return A + (olr_B * (T - 273.15));
 }
 
 vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C) {
@@ -111,9 +117,10 @@ vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C) {
 }
 
 void main() {
-    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
-    // Ts, q, alpha, Q
+    // fetch data from state texture
+    // Ts, E, h_ice, A
     //  r, g,     b, a
+    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
     vec4 value = imageLoad(stateOut, texelCoord);
 
     // coordinates
@@ -127,20 +134,34 @@ void main() {
     // compute albedo
     float alpha = calc_albedo(value.r, lat);
 
-    // emit albedo as a and insol as b
-    value.a = alpha;
-    value.b = Q;
+    // compute change in E
+    float ASR  = calc_ASR(alpha, Q);
+    float corr = ice_alpha + (ice_deltaa / 2) * tanh(value.g / (ice_Li * ice_ha));
+    ASR       *= corr;
+    float OLR  = calc_OLR(value.r, olr_A);
+    float dEdt = ASR - OLR + ice_FB;
+    value.g   += dEdt;
 
-    // calculate water depth
-    float C_val = calc_Cval(30.0);
+    // compute h_ice
+    float h_ice = -value.g / ice_Li * float(value.g < 0);
+    value.b     = h_ice;
 
-    // compute temperature
-    value.r += calc_Ts(alpha, Q, value.r, C_val) * dt * secs_per_day;
+    // compute A from fluxes
+    // use (3) and old temperature
+    float A = dEdt + (ice_B * (value.r - 273.15)) - ice_FB;
+    value.a = A;
 
-    // adv diff
-    float dTdt = calc_merid_advdiff(value, texelCoord, lat, C_val).r;
-    value.g = dTdt;
-    value.r += dTdt * dt * secs_per_day;
+    // compute temperature (C)
+    float T = 0;
+    T += (value.g / ice_c0H0) * float(value.g >= 0);
+    T += (ice_Tm - 273.15) * (float(value.g < 0) * float(A > 0));
+    T += (A / ice_B) * (1 / (1 + ice_ki / (ice_B * h_ice))) * (float(value.g < 0) * float(A < 0));
+
+    // convert temperature
+    T += 273.15;
+
+    // store temperature
+    value.r = T;
 
     imageStore(stateOut, texelCoord, value);
 }

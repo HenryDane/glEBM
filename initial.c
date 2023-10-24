@@ -5,16 +5,32 @@
 #include <math.h>
 #include <stdio.h>
 
+float calcP2(float x) {
+    return 0.5 * (3 * x * x - 1.0);
+}
+
 float* make_2d_initial(int nx, int ny) {
     float* data = (float*) malloc(nx * ny * 4 * sizeof(float));
+
+    // must be > 0C;
+    const float Ti   = 293.15;
+    const float c0H0 =   2.0e8;
+    const float T0   =  11.0;
+    const float T2   = -10.0;
 
     for (size_t y = 0; y < ny; y++) {
         for (size_t x = 0; x < nx; x++) {
             size_t i = (y * nx) + x;
+            float lat = (((float) y + 0.5) / ((float) ny) * 180.0f) - 90.0f;
+            float sinphi = sin(deg2rad(lat));
+            float T = T0 + T2 * calcP2(sinphi);
+
+            // convert units
+            T += 273.15;
 
             // temperature
-            data[(i * 4) + 0] = 273.15;
-            data[(i * 4) + 1] =   0.0f;  // vapor mmr
+            data[(i * 4) + 0] = T;
+            data[(i * 4) + 1] = c0H0 * (T - 273.15);  // vapor mmr
             data[(i * 4) + 2] =   0.0f;  // meridional wind
             data[(i * 4) + 3] =   0.0f;  // zonal wind
         }
