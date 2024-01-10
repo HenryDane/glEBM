@@ -41,10 +41,10 @@ unsigned int make_solar_table() {
             float abra = a2_b2_ratio(ecc, slon, long_peri_rad);
             float delta = asin(sin(deg2rad(obliquity)) * sin(slon));
 
-            data[((y * nx) + x) * 4 + 0] = 0.0f;
-            data[((y * nx) + x) * 4 + 1] = abra;
+            data[((y * nx) + x) * 4 + 0] = abra;
+            data[((y * nx) + x) * 4 + 1] = delta;
             data[((y * nx) + x) * 4 + 2] = 0.0f;
-            data[((y * nx) + x) * 4 + 3] = delta;
+            data[((y * nx) + x) * 4 + 3] = 0.0f;
         }
     }
 

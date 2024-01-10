@@ -47,8 +47,8 @@ float calc_Q(float lat, float lon, float day) {
 
     float phi    = deg2rad(lat);
     float h      = (mod((mod(day, 1.0) + (lon / 360)), 1.0) - 0.5) * 2 * pi;
-    float coszen = sin(phi)*sin(soldat.a) + cos(phi)*cos(soldat.a)*cos(h);
-    float Fsw    = soldat.g * coszen;
+    float coszen = sin(phi)*sin(soldat.g) + cos(phi)*cos(soldat.g)*cos(h);
+    float Fsw    = soldat.r * coszen;
     Fsw          = Fsw * float(Fsw > 0);
 
     return Fsw;
