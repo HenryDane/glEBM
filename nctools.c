@@ -25,7 +25,8 @@ void read_input(size_t* model_width, size_t* model_height,
     int ncid, lat_varid, lon_varid, lat_dimid, lon_dimid;
     int Ts_varid, Bs_varid, lambdas_varid;
 
-    const char* file_name = "cmip6-ensemble-mean-feedback.nc";
+//    const char* file_name = "cmip6-ensemble-mean-feedback.nc";
+    const char* file_name = "input.nc";
     printf("Reading input file: %s\n", file_name);
 
     // open the file
@@ -91,7 +92,7 @@ void read_input(size_t* model_width, size_t* model_height,
     *Ts_initial = (float*) malloc(
         (*model_width) * (*model_height) * sizeof(float));
 
-    // check for temperature (could be named many diff things
+    // check for temperature (could be named many diff things)
     retval = try_read_ncvar(ncid, NC_ENOTVAR, "T", &Ts_varid);
     retval = try_read_ncvar(ncid, retval, "Ts", &Ts_varid);
     retval = try_read_ncvar(ncid, retval, "Temperature", &Ts_varid);
@@ -111,7 +112,7 @@ void read_input(size_t* model_width, size_t* model_height,
     *Bs_initial = (float*) malloc(
         (*model_width) * (*model_height) * sizeof(float));
 
-    // check for temperature (could be named many diff things
+    // check for B parameter (could be named many diff things)
     retval = try_read_ncvar(ncid, NC_ENOTVAR, "B", &Bs_varid);
     retval = try_read_ncvar(ncid, retval, "Bs", &Bs_varid);
     if (retval != NC_NOERR) {
@@ -129,7 +130,7 @@ void read_input(size_t* model_width, size_t* model_height,
     *lambdas_initial = (float*) malloc(
         (*model_width) * (*model_height) * sizeof(float));
 
-    // check for temperature (could be named many diff things
+    // check for lambda (could be named many diff things)
     retval = try_read_ncvar(ncid, NC_ENOTVAR, "lambda", &lambdas_varid);
     retval = try_read_ncvar(ncid, retval, "lambdas", &lambdas_varid);
     retval = try_read_ncvar(ncid, retval, "netFeedback", &lambdas_varid);

@@ -136,14 +136,17 @@ float calc_f(float T) {
 
 void main() {
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
+    vec2 uv = vec2(gl_GlobalInvocationID.x + 0.5, gl_GlobalInvocationID.y + 0.5) /
+        vec2(float(gl_NumWorkGroups.x * gl_WorkGroupSize.x), float(gl_NumWorkGroups.y * gl_WorkGroupSize.y));
     // Ts, q, alpha, Q
     //  r, g,     b, a
     vec4 value = imageLoad(stateOut, texelCoord);
 
     // coordinates
     float day = t; //mod(t, days_per_year);
-    float lat = (float(gl_GlobalInvocationID.y + 0.5) / float(gl_NumWorkGroups.y * gl_WorkGroupSize.y) * 180.0f) - 90.0f;
-    float lon = (float(gl_GlobalInvocationID.x + 0.5) / float(gl_NumWorkGroups.x * gl_WorkGroupSize.x) * 360.0f);
+    vec4 physical_params = texture(physp_LUT, uv);
+    float lat = physical_params.r;
+    float lon = physical_params.g;
 
     // compute instant insolation
     float Q = calc_Q(lat, lon, day);
@@ -151,9 +154,11 @@ void main() {
     // compute albedo
     float alpha = calc_albedo(value.r, lat);
 
-    // emit albedo as a and insol as b
-    value.a = alpha;
-    value.b = Q;
+//    // emit albedo as a and insol as b
+//    value.a = alpha;
+//    value.b = Q;
+    value.a = lat;
+    value.b = lon;
 
     // calculate water depth
     float C_val = calc_Cval(30.0);
