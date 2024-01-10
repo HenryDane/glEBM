@@ -1,0 +1,12 @@
+*.ipynb
+*.pdf
+CMakeLists.txt
+*.nc
+*.cbp
+*.depend
+*.layout
+obj/*
+bin/*
+build/*
+climlab*
+results/*

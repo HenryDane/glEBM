@@ -7,6 +7,7 @@
 #include "initial.h"
 #include "fetch.h"
 #include "renderutil.h"
+#include "nctools.h"
 
 // https://learnopengl.com/Guest-Articles/2022/Compute-Shaders/Introduction
 // https://medium.com/@daniel.coady/compute-shaders-in-opengl-4-3-d1c741998c03
@@ -59,39 +60,6 @@ bool is_pow2(int x) {
 }
 
 int main(int argc, char *argv[]) {
-    int model_size_x = DEFAULT_MODEL_WIDTH;
-    int model_size_y = DEFAULT_MODEL_HEIGHT;
-
-    // parse arguments
-    if (argc > 1){
-        char* p;
-        // require either all arguments specified, or none specified
-        if (argc != 3) {
-            printf("Usage: glEBM width height\n");
-            return 0;
-        }
-
-        model_size_x = strtol(argv[1], &p, 10);
-        if (errno == ERANGE) {
-            printf("Error: width value could not be converted to int.\n");
-            return 0;
-        }
-        if (!is_pow2(model_size_x)) {
-            printf("Error: width value must be a power of 2.\n");
-            return 0;
-        }
-
-        model_size_y = strtol(argv[2], &p, 10);
-        if (errno == ERANGE) {
-            printf("Error: height value could not be converted to int.\n");
-            return 0;
-        }
-        if (!is_pow2(model_size_y)) {
-            printf("Error: height value must be a power of 2.\n");
-            return 0;
-        }
-    }
-
     // register an error callback
     glfwSetErrorCallback(error_callback);
 
@@ -131,8 +99,15 @@ int main(int argc, char *argv[]) {
     glEnable(GL_DEBUG_OUTPUT);
     glDebugMessageCallback(messageCallback, 0);
 
+    // setup profiling data
     profile_t profldat;
     init_profile(&profldat);
+
+    // load netcdf4 input file
+    model_initial_t model;
+    size_t model_size_x, model_size_y;
+    read_input(&model_size_x, &model_size_y, &model.lats, &model.lons,
+        &model.Ts, &model.Bs, &model.lambdas);
 
     // query limitations
     int max_compute_work_group_count[3];
@@ -218,10 +193,8 @@ int main(int argc, char *argv[]) {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, solat_LUT);
 
-    float t = 0.0f;
-//    float dt = 1e-1f;
+    float t = 0.0f; // in days
     float dt = (1.0f / 24.0f) * (1 / 12.0f); // 5 mins
-//    float dt = (1.0f / 24.0f); // 5 mins
 
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {
@@ -237,9 +210,6 @@ int main(int argc, char *argv[]) {
         glUniform1i(css_insol_LUT_l, 1);
         glDispatchCompute((unsigned int)model_size_x / 32, (unsigned int)model_size_y / 32, 1);
         t += dt;
-
-        // make sure writing to image has finished before read
-//        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
         // render image to quad
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -263,8 +233,6 @@ int main(int argc, char *argv[]) {
         // collect statistics
         if (frame_ctr % 500 == 0) {
 #ifndef REDUCED_OUTPUT
-//            printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
-//                currentFrame * speed, delta * speed * 24.0f * 60.0f, 1.0f / delta);
             if (t <= days_per_year) {
                 printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
                     t, dt * 24.0f * 60.0f, 1.0f / delta);
