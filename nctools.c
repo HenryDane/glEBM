@@ -16,11 +16,14 @@ int abort_ncop(int retval) {
     exit(2);
 }
 
+//void
+
 void read_input(size_t* model_width, size_t* model_height,
     float** lats, float** lons,
     float** Ts_initial, float** Bs_initial, float** lambdas_initial) {
     int retval; // temporary for nc queries
-    int ncid, lat_varid, lon_varid, Ts_varid, Bs_varid, lambdas_varid;
+    int ncid, lat_varid, lon_varid, lat_dimid, lon_dimid;
+    int Ts_varid, Bs_varid, lambdas_varid;
 
     const char* file_name = "cmip6-ensemble-mean-feedback.nc";
     printf("Reading input file: %s\n", file_name);
@@ -32,16 +35,22 @@ void read_input(size_t* model_width, size_t* model_height,
 
     // get varids of lat and lon. if either is missing, exit the program
     const char* lat_name = "lat";
-    if ((retval = nc_inq_dimid(ncid, lat_name, &lat_varid))) {
+    if ((retval = nc_inq_dimid(ncid, lat_name, &lat_dimid))) {
        abort_ncop(retval);
     }
+    if ((retval = nc_inq_varid(ncid, lat_name, &lat_varid))) {
+        abort_ncop(retval);
+    }
     const char* lon_name = "lon";
-    if ((retval = nc_inq_dimid(ncid, lon_name, &lon_varid))) {
+    if ((retval = nc_inq_dimid(ncid, lon_name, &lon_dimid))) {
        abort_ncop(retval);
+    }
+    if ((retval = nc_inq_varid(ncid, lon_name, &lon_varid))) {
+        abort_ncop(retval);
     }
 
     // get model width and height and check that they are multiple of 32
-    retval = nc_inq_dimlen(ncid, lat_varid, model_height);
+    retval = nc_inq_dimlen(ncid, lat_dimid, model_height);
     if (retval != NC_NOERR) {
         abort_ncop(retval);
     }
@@ -52,7 +61,7 @@ void read_input(size_t* model_width, size_t* model_height,
         printf("Error: lat (model_height) must be greater than zero.\n");
         exit(3);
     }
-    retval = nc_inq_dimlen(ncid, lon_varid, model_width);
+    retval = nc_inq_dimlen(ncid, lon_dimid, model_width);
     if (retval) {
         abort_ncop(retval);
     }
@@ -65,6 +74,18 @@ void read_input(size_t* model_width, size_t* model_height,
         exit(3);
     }
     printf("Model size: (n_lon=%lu, n_lat=%lu)\n", *model_width, *model_height);
+
+    // get lats
+    *lats = (float*) malloc((*model_height) * sizeof(float));
+    if (retval = nc_get_var_float(ncid, lat_varid, *lats)) {
+        abort_ncop(retval);
+    }
+
+    // get lons
+    *lons = (float*) malloc((*model_width) * sizeof(float));
+    if (retval = nc_get_var_float(ncid, lon_varid, *lons)) {
+        abort_ncop(retval);
+    }
 
     // allocate memory for temperature
     *Ts_initial = (float*) malloc(

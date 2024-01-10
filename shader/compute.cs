@@ -4,6 +4,7 @@ layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
 layout(rgba32f, binding = 0) uniform image2D stateOut;
 layout(binding = 1) uniform sampler2D insol_LUT;
+layout(binding = 2) uniform sampler2D physp_LUT;
 
 layout(location = 0) uniform float t;
 layout(location = 1) uniform float dt;

@@ -4,6 +4,7 @@
 #include "common.h"
 #include <math.h>
 #include <stdio.h>
+#include "nctools.h"
 
 float* make_2d_initial(int nx, int ny) {
     float* data = (float*) malloc(nx * ny * 4 * sizeof(float));
@@ -58,4 +59,32 @@ unsigned int make_solar_table() {
                  GL_RGBA, GL_FLOAT, data);
 
     return solar_LUT;
+}
+
+unsigned int make_LUT(size_t model_width, size_t model_height,
+    model_initial_t* model) {
+    // allocate memory for LUT
+    unsigned int LUT;
+    float* data = (float*) malloc(
+        model_width * model_height * 4 * sizeof(float));
+
+    // copy stuff over
+    for (size_t i = 0; i < model_width * model_height; i++) {
+        data[(i * 4) + 0] = model->lats[i / model_width];
+        data[(i * 4) + 1] = model->lons[i % model_width];
+        data[(i * 4) + 2] = model->Bs[i];
+        data[(i * 4) + 3] = model->lambdas[i];
+    }
+
+    // gemerate texture
+    glGenTextures(1, &LUT);
+    glBindTexture(GL_TEXTURE_2D, LUT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, model_width, model_height, 0,
+                 GL_RGBA, GL_FLOAT, data);
+
+    return LUT;
 }

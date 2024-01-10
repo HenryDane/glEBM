@@ -4,11 +4,11 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#define SCR_WIDTH  512
-#define SCR_HEIGHT 512
-
 #define DEFAULT_MODEL_WIDTH  192
 #define DEFAULT_MODEL_HEIGHT 288
+
+#define SCR_WIDTH  DEFAULT_MODEL_WIDTH
+#define SCR_HEIGHT DEFAULT_MODEL_HEIGHT
 
 #define DEFAULT_RESULT_PATH "results/"
 

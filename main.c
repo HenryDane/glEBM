@@ -164,6 +164,9 @@ int main(int argc, char *argv[]) {
     // create solar LUT texture
     unsigned int solat_LUT = make_solar_table();
 
+    // create physical LUT (lat, lon, B, lambda) texture
+    unsigned int physp_LUT = make_LUT(model_size_x, model_size_y, &model);
+
     // make shaders
     unsigned int compute_shader = create_cshader("shader/compute.cs");
     unsigned int screen_shader  = create_shader("shader/screen.vs", "shader/screen.fs");
@@ -178,6 +181,7 @@ int main(int argc, char *argv[]) {
     unsigned int css_t_l         = glGetUniformLocation(compute_shader, "t");
     unsigned int css_dt_l        = glGetUniformLocation(compute_shader, "dt");
     unsigned int css_insol_LUT_l = glGetUniformLocation(compute_shader, "insol_LUT");
+    unsigned int css_physp_LUT_l = glGetUniformLocation(compute_shader, "physp_LUT");
 
     // timing state info
     float currentFrame, delta, tlast = 0.0f;
@@ -192,6 +196,8 @@ int main(int argc, char *argv[]) {
     glBindTexture(GL_TEXTURE_2D, surf_texture);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, solat_LUT);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, physp_LUT);
 
     float t = 0.0f; // in days
     float dt = (1.0f / 24.0f) * (1 / 12.0f); // 5 mins
@@ -208,6 +214,7 @@ int main(int argc, char *argv[]) {
         glUniform1f(css_t_l, t);
         glUniform1f(css_dt_l, dt);
         glUniform1i(css_insol_LUT_l, 1);
+        glUniform1i(css_physp_LUT_l, 2);
         glDispatchCompute((unsigned int)model_size_x / 32, (unsigned int)model_size_y / 32, 1);
         t += dt;
 
