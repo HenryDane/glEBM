@@ -16,14 +16,36 @@ void error_callback(int error, const char* description) {
     fprintf(stderr, "Error: %s\n", description);
 }
 
-void GLAPIENTRY messageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length,
-    const GLchar* message, const void* userParam){
-    printf("%s type=0x%04X severity=0x%04X %s\n", (type == GL_DEBUG_TYPE_ERROR ? "*** GL ERROR ***" : "*** GL INFO ***" ),
-    type, severity, message);
-
-    if (type == GL_DEBUG_TYPE_ERROR) {
-        exit(1); // commenting this makes screen sharing possible i have no idea why
+const char* get_gl_err_type_str(GLenum type) {
+    switch(type) {
+    case GL_DEBUG_TYPE_ERROR:
+        return "GL_ERROR";
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+        return "GL_DEPRECATED_BEHAVIOR";
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+        return "GL_UNDEFINED_BEHAVIOR";
+        break;
+    case GL_DEBUG_TYPE_PORTABILITY:
+        return "GL_PORTABILITY";
+    case GL_DEBUG_TYPE_PERFORMANCE:
+        return "GL_PERFORMANCE";
+    case GL_DEBUG_TYPE_OTHER:
+        return "GL_INFO";
     }
+
+    return "GL_UNKNOWN";
+}
+
+void GLAPIENTRY messageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length,
+	const GLchar* message, const void* userParam){
+
+    printf("[%s] type=%#02x severity=%#02x source=%#02x id=%#02x message: %s\n",
+        get_gl_err_type_str(type), type, severity, source, id, message);
+
+	if (type == GL_DEBUG_TYPE_ERROR) {
+		exit(-20); // commenting this makes screen sharing possible i have no idea why
+	}
+
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -250,8 +272,6 @@ int main(int argc, char *argv[]) {
                 printf("fc=%d t=%.4f (yr) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
                     t / days_per_year, dt * 24.0f * 60.0f, 1.0f / delta);
             }
-#else
-            printf("%.4e ", currentFrame * speed);
 #endif // REDUCED_OUTPUT
             fetch_2d_state(surf_texture, model_size_x, model_size_y, &Tmax, &Tmin,
                 &qmax, &qmin, &umax, &umin, &vmax, &vmin);
