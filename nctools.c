@@ -88,7 +88,7 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     const char* deg_east  = "degrees_east";
     const char* units_K   = "kelvin";
     const char* units_B   = "w/m2/K";
-    const char* units_day = "days";
+    const char* units_day = "s";
 
     // create a nc file
     retval = nc_create(path, NC_CLOBBER, &ncid);
@@ -129,9 +129,9 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     check_retval(retval);
 
     // define units for time coord var
-//    retval = nc_put_att_text(ncid, time_varid, units_str,
-//        strlen(units_day), units_day);
-//    check_retval(retval);
+    retval = nc_put_att_text(ncid, time_varid, units_str,
+        strlen(units_day), units_day);
+    check_retval(retval);
 
     // prepare dimids arrays
     int dimid_2d[] = {lat_dimid, lon_dimid};
@@ -201,7 +201,8 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
         check_retval(retval);
 
         // write time
-        retval = nc_put_var1_float(ncid, time_varid, &starts[0], &model->head->time);
+        float t_in_s = model->head->time * 86400.0f;
+        retval = nc_put_var1_float(ncid, time_varid, &starts[0], &t_in_s);
         check_retval(retval);
 
         starts[0]++;
