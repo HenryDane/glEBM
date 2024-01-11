@@ -5,7 +5,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-void fetch_2d_state(unsigned int texture, int nx, int ny, float* Tmax,
+float* fetch_2d_state(unsigned int texture, int nx, int ny, float* Tmax,
     float* Tmin, float* qmax, float* qmin, float* umax, float* umin,
     float* vmax, float* vmin) {
     // create a buffer
@@ -40,6 +40,8 @@ void fetch_2d_state(unsigned int texture, int nx, int ny, float* Tmax,
     printf("  Insolation   min=%.4e max=%.4e mean=%.4e\n", *umin, *umax, umean);
     printf("  Albedo       min=%.4e max=%.4e mean=%.4e\n", *vmin, *vmax, vmean);
 #endif // REDUCED_OUTPUT
+
+    return data;
 }
 
 void fetch_and_dump_state(unsigned int surf_texture, int nx, int ny,

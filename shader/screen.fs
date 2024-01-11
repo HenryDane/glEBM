@@ -4,6 +4,7 @@ out vec4 FragColor;
 in vec2 TexCoords;
 
 uniform sampler2D tex;
+layout(binding = 2) uniform sampler2D physp_LUT;
 uniform vec4 maxs;
 uniform vec4 mins;
 
@@ -24,10 +25,12 @@ vec3 color_map(float t) {
 
 void main() {
     vec4 value = texture(tex, TexCoords).rgba;
+//    vec4 value = texture(physp_LUT, TexCoords).rgba;
 
     value = (value - mins) / (maxs - mins);
 
     FragColor = vec4(color_map(clamp(value.r, 0, 1)), 1.0);
+//    FragColor = vec4(color_map(clamp(value.b, 0, 1)), 1.0);
 //    FragColor = vec4(vec3(value.r), 1.0);
 //    FragColor = vec4(vec3(value.a), 1.0);
 //    FragColor = vec4(1 - value.a, 0.0, 0.0, 1.0);

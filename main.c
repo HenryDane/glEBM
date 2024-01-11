@@ -104,10 +104,15 @@ int main(int argc, char *argv[]) {
     init_profile(&profldat);
 
     // load netcdf4 input file
-    model_initial_t model;
+    model_initial_t initial_model;
     size_t model_size_x, model_size_y;
-    read_input(&model_size_x, &model_size_y, &model.lats, &model.lons,
-        &model.Ts, &model.Bs, &model.lambdas);
+    read_input(&model_size_x, &model_size_y,
+        &initial_model.lats, &initial_model.lons,
+        &initial_model.Ts, &initial_model.Bs, &initial_model.lambdas);
+
+    model_storage_t model;
+    init_model_storage(&model, 10.0f,
+        model_size_x, model_size_y);
 
     // query limitations
     int max_compute_work_group_count[3];
@@ -165,7 +170,8 @@ int main(int argc, char *argv[]) {
     unsigned int solat_LUT = make_solar_table();
 
     // create physical LUT (lat, lon, B, lambda) texture
-    unsigned int physp_LUT = make_LUT(model_size_x, model_size_y, &model);
+    unsigned int physp_LUT = make_LUT(model_size_x, model_size_y,
+        &initial_model);
 
     // make shaders
     unsigned int compute_shader = create_cshader("shader/compute.cs");
@@ -200,7 +206,7 @@ int main(int argc, char *argv[]) {
     glBindTexture(GL_TEXTURE_2D, physp_LUT);
 
     float t = 0.0f; // in days
-    float dt = (1.0f / 24.0f) * (1 / 12.0f); // 5 mins
+    float dt = model.timestep; // 5 mins
 
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {
@@ -248,13 +254,27 @@ int main(int argc, char *argv[]) {
                     t / days_per_year, dt * 24.0f * 60.0f, 1.0f / delta);
             }
 #endif // REDUCED_OUTPUT
-            fetch_2d_state(surf_texture, model_size_x, model_size_y, &Tmax, &Tmin,
+            float* data = fetch_2d_state(
+                surf_texture, model_size_x, model_size_y, &Tmax, &Tmin,
                 &qmax, &qmin, &umax, &umin, &vmax, &vmin);
+            model_storage_add_frame(&model, t, data);
         }
 
-        if (t > days_per_year * 3.0) {
-            const char* path = "result.csv";
-            fetch_and_dump_state(surf_texture, model_size_x, model_size_y, path);
+        // run for 8 years
+        if (t > model.final_time) {
+            const char* path = "output.nc";
+            printf("Run complete.\nSaving results to %s...\n", path);
+            // get the data agian
+            float* data = fetch_2d_state(
+                surf_texture, model_size_x, model_size_y, &Tmax, &Tmin,
+                &qmax, &qmin, &umax, &umin, &vmax, &vmin);
+            // add it to the pile
+            model_storage_add_frame(&model, t, data);
+            // write it to disk
+            model_storage_write(model_size_x, model_size_y, &model, &initial_model, path);
+            // delete it
+            model_storage_free(&model);
+            // stop the run
             glfwSetWindowShouldClose(window, GLFW_TRUE);
             break;
         }

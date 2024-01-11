@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "common.h"
+#include <math.h>
+#include <string.h>
 
 int try_read_ncvar(int ncid, int prev_ret, const char* name, int* varid) {
     if (prev_ret == NC_NOERR) return prev_ret;
@@ -11,12 +13,164 @@ int try_read_ncvar(int ncid, int prev_ret, const char* name, int* varid) {
     return retval;
 }
 
-int abort_ncop(int retval) {
+void abort_ncop(int retval) {
     printf("Error: %s\n", nc_strerror(retval));
     exit(2);
 }
 
-//void
+void check_retval(int retval) {
+    if (retval != NC_NOERR) {
+        abort_ncop(retval);
+    }
+}
+
+void init_model_storage(model_storage_t* model, float final_time,
+    int model_width, int model_height) {
+    model->timestep = (1.0f / 24.0f) * (5.0f / 60.0f); // in days
+    model->final_time = final_time;
+    model->n_timesteps = (int) ceilf(final_time / model->timestep);
+    model->n_slots = (model->n_timesteps / 500) + 1;
+
+    // create head
+    model->head = malloc(sizeof(storage_frame_t));
+    model->head->next = NULL;
+    model->head->prev = NULL;
+    model->head->time = 0.0f;
+    model->head->data = NULL;
+}
+
+void model_storage_add_frame(model_storage_t* model, float time, float* data) {
+    // create a frame
+    storage_frame_t* frame = (storage_frame_t*) malloc(sizeof(storage_frame_t));
+    frame->prev = model->head;
+    frame->next = NULL;
+    frame->time = time;
+    frame->data = data;
+
+    // update head
+    model->head->next = frame;
+
+    // update model
+    model->head = frame;
+}
+
+void model_storage_write(int size_x, int size_y, model_storage_t* model,
+    model_initial_t* initial, const char* path) {
+    // find first node
+    int num = 0;
+    while (model->head->prev != NULL) {
+        model->head = model->head->prev;
+        num++;
+    }
+
+    // head points to first node, check that t==0.0f, data==NULL
+    if (model->head->time > 0.001 || model->head->data != NULL) {
+        // something is wrong
+        printf("Model storage is mangled!\n");
+        exit(3);
+    }
+
+    // temporary values and ids
+    int retval;
+    int ncid, lat_dimid, lat_varid, lon_dimid, lon_varid;
+    int time_dimid, time_varid;
+    int Ti_varid, Bp_varid, Ts_varid;
+
+    // string names
+    const char* lat_name  = "lat";
+    const char* lon_name  = "lon";
+    const char* Ti_name   = "T_initial";
+    const char* Ts_name   = "Ts";
+    const char* Bp_name   = "param_B";
+    const char* units_str = "units";
+    const char* deg_north = "degrees_north";
+    const char* deg_east  = "degrees_east";
+    const char* units_K   = "kelvin";
+    const char* units_B   = "w/m2/K";
+
+    // create a nc file
+    retval = nc_create(path, NC_CLOBBER, &ncid);
+    check_retval(retval);
+
+    // make lat dimension
+    retval = nc_def_dim(ncid, lat_name, size_y, &lat_dimid);
+    check_retval(retval);
+
+    // make lon dimension
+    retval = nc_def_dim(ncid, lon_name, size_x, &lon_dimid);
+    check_retval(retval);
+
+    // make lat coord var
+    retval = nc_def_var(ncid, lat_name, NC_FLOAT, 1, &lat_dimid, &lat_varid);
+    check_retval(retval);
+
+    // make lon coord var
+    retval = nc_def_var(ncid, lon_name, NC_FLOAT, 1, &lon_dimid, &lon_varid);
+    check_retval(retval);
+
+    // define units for lat coord var
+    retval = nc_put_att_text(ncid, lat_varid, units_str,
+        strlen(deg_north), deg_north);
+    check_retval(retval);
+
+    // define units for lon coord var
+    retval = nc_put_att_text(ncid, lon_varid, units_str,
+        strlen(deg_east), deg_east);
+    check_retval(retval);
+
+    // make time dimension
+    retval = nc_def_dim(ncid, time_name, NC_UNLIMITED, &time_dimid);
+    check_retval(retval);
+
+    // TODO: set values of time dimension
+    // TODO: set units of time dimension
+
+    // prepare dimids arrays
+    int dimid_2d[] = {lat_dimid, lon_dimid};
+    int dimid_3d[] = {time_dimid, lat_dimid, lon_dimid};
+
+    // define T_initial variable
+    retval = nc_def_var(ncid, Ti_name, NC_FLOAT, 2, dimid_2d, &Ti_varid);
+    check_retval(retval);
+
+    // set T_initial units
+    retval = nc_put_att_text(ncid, Ti_varid, units_str, strlen(units_K), units_K);
+    check_retval(retval);
+
+    // define param_B variable
+    retval = nc_def_var(ncid, Bp_name, NC_FLOAT, 2, dimid_2d, &Bp_varid);
+    check_retval(retval);
+
+    // set param_B units
+    retval = nc_put_att_text(ncid, Bp_varid, units_str, strlen(units_B), units_B);
+    check_retval(retval);
+
+    // define Ts variable
+    retval = nc_def_var(ncid, Ts_name, NC_FLOAT, 3, dimid_3d, &Ts_varid);
+    check_retval(retval);
+
+    // set Ts units
+
+    // end define mode
+    retval = nc_enddef(ncid);
+    check_retval(retval);
+
+    // write lats
+
+    // write lons
+
+    // write T_initial
+
+    // write param_B
+
+    // write Ts frame by frame
+
+    // close file
+}
+
+void model_storage_free(model_storage_t* model) {
+    // TODO
+}
 
 void read_input(size_t* model_width, size_t* model_height,
     float** lats, float** lons,

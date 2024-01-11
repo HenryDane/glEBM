@@ -28,7 +28,7 @@ const float Tf = 263.15f;
 
 // OLR parameters
 const float olr_A = 210.0f;
-const float olr_B =   2.0f;
+//const float olr_B =   2.0f;
 
 float deg2rad(float x) {
     return pi / 180.0f * x;
@@ -64,12 +64,13 @@ float calc_albedo(float Ts, float lat) {
     return albedo;
 }
 
-float calc_Ts(float albedo, float Q, float T_old, float C_val) {
+float calc_Ts(float albedo, float Q, float T_old, float C_val, float olr_B) {
     float ASR = (1 - albedo) * Q;
     float OLR = olr_A + (olr_B * (T_old - 273.15));
     return (1 / C_val) * (ASR - OLR);
 }
 
+// TODO: add zonal adv-diff
 vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C, float f) {
     const float D = 0.555;
     ivec2 imgsize = imageSize(stateOut);
@@ -147,6 +148,7 @@ void main() {
     vec4 physical_params = texture(physp_LUT, uv);
     float lat = physical_params.r;
     float lon = physical_params.g;
+    float B   = physical_params.b;
 
     // compute instant insolation
     float Q = calc_Q(lat, lon, day);
@@ -155,16 +157,14 @@ void main() {
     float alpha = calc_albedo(value.r, lat);
 
 //    // emit albedo as a and insol as b
-//    value.a = alpha;
-//    value.b = Q;
-    value.a = lat;
-    value.b = lon;
+    value.a = alpha;
+    value.b = Q;
 
     // calculate water depth
     float C_val = calc_Cval(30.0);
 
     // compute temperature
-    value.r += calc_Ts(alpha, Q, value.r, C_val) * dt * secs_per_day;
+    value.r += calc_Ts(alpha, Q, value.r, C_val, B) * dt * secs_per_day;
 
     // compute moist ampl factor
     float f = calc_f(value.r);
