@@ -79,6 +79,7 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     // string names
     const char* lat_name  = "lat";
     const char* lon_name  = "lon";
+    const char* time_name = "time";
     const char* Ti_name   = "T_initial";
     const char* Ts_name   = "Ts";
     const char* Bp_name   = "param_B";
@@ -87,6 +88,7 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     const char* deg_east  = "degrees_east";
     const char* units_K   = "kelvin";
     const char* units_B   = "w/m2/K";
+    const char* units_day = "days";
 
     // create a nc file
     retval = nc_create(path, NC_CLOBBER, &ncid);
@@ -100,12 +102,20 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     retval = nc_def_dim(ncid, lon_name, size_x, &lon_dimid);
     check_retval(retval);
 
+    // make time dimension
+    retval = nc_def_dim(ncid, time_name, NC_UNLIMITED, &time_dimid);
+    check_retval(retval);
+
     // make lat coord var
     retval = nc_def_var(ncid, lat_name, NC_FLOAT, 1, &lat_dimid, &lat_varid);
     check_retval(retval);
 
     // make lon coord var
     retval = nc_def_var(ncid, lon_name, NC_FLOAT, 1, &lon_dimid, &lon_varid);
+    check_retval(retval);
+
+    // make time coord var
+    retval = nc_def_var(ncid, time_name, NC_FLOAT, 1, &time_dimid, &time_varid);
     check_retval(retval);
 
     // define units for lat coord var
@@ -118,12 +128,10 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
         strlen(deg_east), deg_east);
     check_retval(retval);
 
-    // make time dimension
-    retval = nc_def_dim(ncid, time_name, NC_UNLIMITED, &time_dimid);
-    check_retval(retval);
-
-    // TODO: set values of time dimension
-    // TODO: set units of time dimension
+    // define units for time coord var
+//    retval = nc_put_att_text(ncid, time_varid, units_str,
+//        strlen(units_day), units_day);
+//    check_retval(retval);
 
     // prepare dimids arrays
     int dimid_2d[] = {lat_dimid, lon_dimid};
@@ -150,26 +158,77 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     check_retval(retval);
 
     // set Ts units
+    retval = nc_put_att_text(ncid, Ts_varid, units_str, strlen(units_K), units_K);
+    check_retval(retval);
 
     // end define mode
     retval = nc_enddef(ncid);
     check_retval(retval);
 
     // write lats
+    retval = nc_put_var_float(ncid, lat_varid, initial->lats);
+    check_retval(retval);
 
     // write lons
+    retval = nc_put_var_float(ncid, lon_varid, initial->lons);
+    check_retval(retval);
 
     // write T_initial
+    retval = nc_put_var_float(ncid, Ti_varid, initial->Ts);
+    check_retval(retval);
 
     // write param_B
+    retval = nc_put_var_float(ncid, Bp_varid, initial->Bs);
+    check_retval(retval);
 
     // write Ts frame by frame
+    size_t counts[] = {1, size_y, size_x};
+    size_t starts[] = {0, 0, 0};
+    float* Tdata = malloc(size_y * size_x * sizeof(float));
+    while (model->head->next != NULL) {
+        model->head = model->head->next;
+
+        printf("Writing frame t=%f data=%x\n",
+            model->head->time, model->head->data);
+
+        // copy temperature data from model output
+        for (size_t i = 0; i < size_y * size_x; i++) {
+            Tdata[i] = model->head->data[(i * 4) + 0];
+        }
+
+        // write Ts
+        retval = nc_put_vara_float(ncid, Ts_varid, starts, counts, Tdata);
+        check_retval(retval);
+
+        // write time
+        retval = nc_put_var1_float(ncid, time_varid, &starts[0], &model->head->time);
+        check_retval(retval);
+
+        starts[0]++;
+    }
+    free(Tdata);
 
     // close file
+    retval = nc_close(ncid);
+    check_retval(retval);
+
+    printf("Finished writing to %s.\n", path);
 }
 
 void model_storage_free(model_storage_t* model) {
-    // TODO
+    // find first node
+    int num = 0;
+    while (model->head->prev != NULL) {
+        model->head = model->head->prev;
+        num++;
+    }
+
+    // head points to first node, check that t==0.0f, data==NULL
+    if (model->head->time > 0.001 || model->head->data != NULL) {
+        // something is wrong
+        printf("Model storage is mangled!\n");
+        exit(3);
+    }
 }
 
 void read_input(size_t* model_width, size_t* model_height,
