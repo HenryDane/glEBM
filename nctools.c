@@ -74,7 +74,7 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     int retval;
     int ncid, lat_dimid, lat_varid, lon_dimid, lon_varid;
     int time_dimid, time_varid;
-    int Ti_varid, Bp_varid, Ts_varid, albedos_varid, depths_varid;
+    int Ti_varid, Bp_varid, Ts_varid, a0s_varid, a2s_varid, ais_varid, depths_varid;
 
     // string names
     const char* lat_name     = "lat";
@@ -83,7 +83,9 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     const char* Ti_name      = "T_initial";
     const char* Ts_name      = "Ts";
     const char* Bp_name      = "param_B";
-    const char* albedos_name = "albedos";
+    const char* a0s_name     = "a0s";
+    const char* a2s_name     = "a2s";
+    const char* ais_name     = "ais";
     const char* depths_name  = "depths";
     const char* units_str    = "units";
     const char* deg_north    = "degrees_north";
@@ -165,12 +167,22 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     retval = nc_put_att_text(ncid, Ts_varid, units_str, strlen(units_K), units_K);
     check_retval(retval);
 
-    // define albedos variable
-    retval = nc_def_var(ncid, albedos_name, NC_FLOAT, 2, dimid_2d, &albedos_varid);
+    // define albedos variables
+    retval = nc_def_var(ncid, a0s_name, NC_FLOAT, 2, dimid_2d, &a0s_varid);
+    check_retval(retval);
+    retval = nc_def_var(ncid, a2s_name, NC_FLOAT, 2, dimid_2d, &a2s_varid);
+    check_retval(retval);
+    retval = nc_def_var(ncid, ais_name, NC_FLOAT, 2, dimid_2d, &ais_varid);
     check_retval(retval);
 
     // set albedos units
-    retval = nc_put_att_text(ncid, albedos_varid, units_str,
+    retval = nc_put_att_text(ncid, a0s_varid, units_str,
+        strlen(units_albedo), units_albedo);
+    check_retval(retval);
+    retval = nc_put_att_text(ncid, a2s_varid, units_str,
+        strlen(units_albedo), units_albedo);
+    check_retval(retval);
+    retval = nc_put_att_text(ncid, ais_varid, units_str,
         strlen(units_albedo), units_albedo);
     check_retval(retval);
 
@@ -208,7 +220,11 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     check_retval(retval);
 
     // write albedos
-    retval = nc_put_var_float(ncid, albedos_varid, initial->albedos);
+    retval = nc_put_var_float(ncid, a0s_varid, initial->a0s);
+    check_retval(retval);
+    retval = nc_put_var_float(ncid, a2s_varid, initial->a2s);
+    check_retval(retval);
+    retval = nc_put_var_float(ncid, ais_varid, initial->ais);
     check_retval(retval);
 
     // write Ts frame by frame
@@ -263,12 +279,10 @@ void model_storage_free(model_storage_t* model) {
 }
 
 void read_input(size_t* model_width, size_t* model_height,
-    float** lats, float** lons,
-    float** Ts_initial, float** Bs_initial, float** depths_initial,
-    float** albedos_initial) {
+    model_initial_t* model) {
     int retval; // temporary for nc queries
     int ncid, lat_varid, lon_varid, lat_dimid, lon_dimid;
-    int Ts_varid, Bs_varid, depths_varid, albedos_varid;
+    int Ts_varid, Bs_varid, depths_varid, a0s_varid, a2s_varid, ais_varid;
 
 //    const char* file_name = "cmip6-ensemble-mean-feedback.nc";
     const char* file_name = "input.nc";
@@ -322,19 +336,19 @@ void read_input(size_t* model_width, size_t* model_height,
     printf("Model size: (n_lon=%lu, n_lat=%lu)\n", *model_width, *model_height);
 
     // get lats
-    *lats = (float*) malloc((*model_height) * sizeof(float));
-    if (retval = nc_get_var_float(ncid, lat_varid, *lats)) {
+    model->lats = (float*) malloc((*model_height) * sizeof(float));
+    if (retval = nc_get_var_float(ncid, lat_varid, model->lats)) {
         abort_ncop(retval);
     }
 
     // get lons
-    *lons = (float*) malloc((*model_width) * sizeof(float));
-    if (retval = nc_get_var_float(ncid, lon_varid, *lons)) {
+    model->lons = (float*) malloc((*model_width) * sizeof(float));
+    if (retval = nc_get_var_float(ncid, lon_varid, model->lons)) {
         abort_ncop(retval);
     }
 
     // allocate memory for temperature
-    *Ts_initial = (float*) malloc(
+    model->Ts = (float*) malloc(
         (*model_width) * (*model_height) * sizeof(float));
 
     // check for temperature (could be named many diff things)
@@ -346,15 +360,15 @@ void read_input(size_t* model_width, size_t* model_height,
         printf("Temperature data not found, using fallback.\n");
         // generate a replacement
         for (int i = 0; i < (*model_width) * (*model_height); i++) {
-            (*Ts_initial)[i] = 273.15;
+            model->Ts[i] = 273.15;
         }
     } else {
         printf("Found temperature data.\n");
-        nc_get_var_float(ncid, Ts_varid, *Ts_initial);
+        nc_get_var_float(ncid, Ts_varid, model->Ts);
     }
 
     // allocate memory for B parameter
-    *Bs_initial = (float*) malloc(
+    model->Bs = (float*) malloc(
         (*model_width) * (*model_height) * sizeof(float));
 
     // check for B parameter (could be named many diff things)
@@ -364,48 +378,82 @@ void read_input(size_t* model_width, size_t* model_height,
         printf("B parameter data not found, using fallback.\n");
         // generate a replacement
         for (int i = 0; i < (*model_width) * (*model_height); i++) {
-            (*Bs_initial)[i] = 2.0f;
+            model->Bs[i] = 2.0f;
         }
     } else {
         printf("Found B parameter data.\n");
-        nc_get_var_float(ncid, Bs_varid, *Bs_initial);
+        nc_get_var_float(ncid, Bs_varid, model->Bs);
     }
 
     // allocate memory for depths
-    *depths_initial = (float*) malloc(
+    model->depths = (float*) malloc(
         (*model_width) * (*model_height) * sizeof(float));
 
-    // check for lambda (could be named many diff things)
+    // check for depths (could be named many diff things)
     retval = try_read_ncvar(ncid, NC_ENOTVAR, "depth", &depths_varid);
     retval = try_read_ncvar(ncid, retval, "depths", &depths_varid);
     if (retval != NC_NOERR) {
         printf("depth data not found, using fallback.\n");
         // generate a replacement
         for (int i = 0; i < (*model_width) * (*model_height); i++) {
-            (*depths_initial)[i] = 30.0f;
+            model->depths[i] = 30.0f;
         }
     } else {
         printf("Found depth data.\n");
-        nc_get_var_float(ncid, depths_varid, *depths_initial);
+        nc_get_var_float(ncid, depths_varid, model->depths);
     }
 
-    // allocate memory for depths
-    *albedos_initial = (float*) malloc(
+    // allocate memory for a0s
+    model->a0s = (float*) malloc(
         (*model_width) * (*model_height) * sizeof(float));
 
-    // check for lambda (could be named many diff things)
-    retval = try_read_ncvar(ncid, NC_ENOTVAR, "albedo", &albedos_varid);
-    retval = try_read_ncvar(ncid, retval, "albedos", &albedos_varid);
-    retval = try_read_ncvar(ncid, retval, "alpha", &albedos_varid);
-    retval = try_read_ncvar(ncid, retval, "alphas", &albedos_varid);
+    // check for a0s (could be named many diff things)
+    retval = try_read_ncvar(ncid, NC_ENOTVAR, "a0", &a0s_varid);
+    retval = try_read_ncvar(ncid, retval, "a0s", &a0s_varid);
     if (retval != NC_NOERR) {
-        printf("albedo data not found, using fallback.\n");
+        printf("a0 data not found, using fallback.\n");
         // generate a replacement
         for (int i = 0; i < (*model_width) * (*model_height); i++) {
-            (*albedos_initial)[i] = 0.3f;
+            model->a0s[i] = 0.3f;
         }
     } else {
-        printf("Found albedo data.\n");
-        nc_get_var_float(ncid, albedos_varid, *albedos_initial);
+        printf("Found a0 data.\n");
+        nc_get_var_float(ncid, a0s_varid, model->a0s);
+    }
+
+    // allocate memory for a2s
+    model->a2s = (float*) malloc(
+        (*model_width) * (*model_height) * sizeof(float));
+
+    // check for a0s (could be named many diff things)
+    retval = try_read_ncvar(ncid, NC_ENOTVAR, "a2", &a2s_varid);
+    retval = try_read_ncvar(ncid, retval, "a2s", &a2s_varid);
+    if (retval != NC_NOERR) {
+        printf("a2 data not found, using fallback.\n");
+        // generate a replacement
+        for (int i = 0; i < (*model_width) * (*model_height); i++) {
+            model->a2s[i] = 0.078f;
+        }
+    } else {
+        printf("Found a2 data.\n");
+        nc_get_var_float(ncid, a2s_varid, model->a2s);
+    }
+
+    // allocate memory for ais
+    model->ais = (float*) malloc(
+        (*model_width) * (*model_height) * sizeof(float));
+
+    // check for ais (could be named many diff things)
+    retval = try_read_ncvar(ncid, NC_ENOTVAR, "ai", &ais_varid);
+    retval = try_read_ncvar(ncid, retval, "ais", &ais_varid);
+    if (retval != NC_NOERR) {
+        printf("ai data not found, using fallback.\n");
+        // generate a replacement
+        for (int i = 0; i < (*model_width) * (*model_height); i++) {
+            model->ais[i] = 0.62f;
+        }
+    } else {
+        printf("Found ai data.\n");
+        nc_get_var_float(ncid, ais_varid, model->ais);
     }
 }

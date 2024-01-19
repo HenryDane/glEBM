@@ -22,9 +22,6 @@ const float gas_cp        =  1004.0;
 const float eps = Rd / Rv;
 
 // albedo parameters
-const float a0 =   0.3f;
-const float a2 =   0.078f;
-const float ai =   0.62f;
 const float Tf = 263.15f;
 
 // OLR parameters
@@ -56,12 +53,14 @@ float calc_Q(float lat, float lon, float day) {
     return Fsw;
 }
 
-float calc_albedo(float Ts, float lat) {
+float calc_albedo(float Ts, float lat, vec2 uv) {
+    // a0 = r, a2 = g, ai = b
+    vec4 alb_params = texture(physp_LUT2, uv);
     float phi = deg2rad(lat);
     float is_freezing = float(Tf > Ts);
     float albedo = 0;
-    albedo += is_freezing * ai;
-    albedo += (1 - is_freezing) * (a0 + a2 * calcP2(phi));
+    albedo += is_freezing * alb_params.b;
+    albedo += (1 - is_freezing) * (alb_params.r + alb_params.g * calcP2(phi));
     return albedo;
 }
 
@@ -155,7 +154,7 @@ void main() {
     float Q = calc_Q(lat, lon, day);
 
     // compute albedo
-    float alpha = calc_albedo(value.r, lat);
+    float alpha = calc_albedo(value.r, lat, uv);
 
 //    // emit albedo as a and insol as b
     value.a = alpha;

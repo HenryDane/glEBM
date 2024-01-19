@@ -106,10 +106,7 @@ int main(int argc, char *argv[]) {
     // load netcdf4 input file
     model_initial_t initial_model;
     size_t model_size_x, model_size_y;
-    read_input(&model_size_x, &model_size_y,
-        &initial_model.lats, &initial_model.lons,
-        &initial_model.Ts, &initial_model.Bs, &initial_model.depths,
-        &initial_model.albedos);
+    read_input(&model_size_x, &model_size_y, &initial_model);
 
     model_storage_t model;
     init_model_storage(&model, 10.0f,
