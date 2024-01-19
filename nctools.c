@@ -74,21 +74,25 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     int retval;
     int ncid, lat_dimid, lat_varid, lon_dimid, lon_varid;
     int time_dimid, time_varid;
-    int Ti_varid, Bp_varid, Ts_varid;
+    int Ti_varid, Bp_varid, Ts_varid, albedos_varid, depths_varid;
 
     // string names
-    const char* lat_name  = "lat";
-    const char* lon_name  = "lon";
-    const char* time_name = "time";
-    const char* Ti_name   = "T_initial";
-    const char* Ts_name   = "Ts";
-    const char* Bp_name   = "param_B";
-    const char* units_str = "units";
-    const char* deg_north = "degrees_north";
-    const char* deg_east  = "degrees_east";
-    const char* units_K   = "kelvin";
-    const char* units_B   = "w/m2/K";
-    const char* units_day = "s";
+    const char* lat_name     = "lat";
+    const char* lon_name     = "lon";
+    const char* time_name    = "time";
+    const char* Ti_name      = "T_initial";
+    const char* Ts_name      = "Ts";
+    const char* Bp_name      = "param_B";
+    const char* albedos_name = "albedos";
+    const char* depths_name  = "depths";
+    const char* units_str    = "units";
+    const char* deg_north    = "degrees_north";
+    const char* deg_east     = "degrees_east";
+    const char* units_K      = "kelvin";
+    const char* units_B      = "w/m2/K";
+    const char* units_day    = "s";
+    const char* units_albedo = "none";
+    const char* units_m      = "m";
 
     // create a nc file
     retval = nc_create(path, NC_CLOBBER, &ncid);
@@ -161,6 +165,24 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     retval = nc_put_att_text(ncid, Ts_varid, units_str, strlen(units_K), units_K);
     check_retval(retval);
 
+    // define albedos variable
+    retval = nc_def_var(ncid, albedos_name, NC_FLOAT, 2, dimid_2d, &albedos_varid);
+    check_retval(retval);
+
+    // set albedos units
+    retval = nc_put_att_text(ncid, albedos_varid, units_str,
+        strlen(units_albedo), units_albedo);
+    check_retval(retval);
+
+    // define depths variable
+    retval = nc_def_var(ncid, depths_name, NC_FLOAT, 2, dimid_2d, &depths_varid);
+    check_retval(retval);
+
+    // set albedos units
+    retval = nc_put_att_text(ncid, depths_varid, units_str,
+        strlen(units_m), units_m);
+    check_retval(retval);
+
     // end define mode
     retval = nc_enddef(ncid);
     check_retval(retval);
@@ -179,6 +201,14 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
 
     // write param_B
     retval = nc_put_var_float(ncid, Bp_varid, initial->Bs);
+    check_retval(retval);
+
+    // write depth
+    retval = nc_put_var_float(ncid, depths_varid, initial->depths);
+    check_retval(retval);
+
+    // write albedos
+    retval = nc_put_var_float(ncid, albedos_varid, initial->albedos);
     check_retval(retval);
 
     // write Ts frame by frame
@@ -234,10 +264,11 @@ void model_storage_free(model_storage_t* model) {
 
 void read_input(size_t* model_width, size_t* model_height,
     float** lats, float** lons,
-    float** Ts_initial, float** Bs_initial, float** lambdas_initial) {
+    float** Ts_initial, float** Bs_initial, float** depths_initial,
+    float** albedos_initial) {
     int retval; // temporary for nc queries
     int ncid, lat_varid, lon_varid, lat_dimid, lon_dimid;
-    int Ts_varid, Bs_varid, lambdas_varid;
+    int Ts_varid, Bs_varid, depths_varid, albedos_varid;
 
 //    const char* file_name = "cmip6-ensemble-mean-feedback.nc";
     const char* file_name = "input.nc";
@@ -340,22 +371,41 @@ void read_input(size_t* model_width, size_t* model_height,
         nc_get_var_float(ncid, Bs_varid, *Bs_initial);
     }
 
-    // allocate memory for lambda
-    *lambdas_initial = (float*) malloc(
+    // allocate memory for depths
+    *depths_initial = (float*) malloc(
         (*model_width) * (*model_height) * sizeof(float));
 
     // check for lambda (could be named many diff things)
-    retval = try_read_ncvar(ncid, NC_ENOTVAR, "lambda", &lambdas_varid);
-    retval = try_read_ncvar(ncid, retval, "lambdas", &lambdas_varid);
-    retval = try_read_ncvar(ncid, retval, "netFeedback", &lambdas_varid);
+    retval = try_read_ncvar(ncid, NC_ENOTVAR, "depth", &depths_varid);
+    retval = try_read_ncvar(ncid, retval, "depths", &depths_varid);
     if (retval != NC_NOERR) {
-        printf("lambda data not found, using fallback.\n");
+        printf("depth data not found, using fallback.\n");
         // generate a replacement
         for (int i = 0; i < (*model_width) * (*model_height); i++) {
-            (*lambdas_initial)[i] = 0.0f;
+            (*depths_initial)[i] = 30.0f;
         }
     } else {
-        printf("Found lambda data.\n");
-        nc_get_var_float(ncid, lambdas_varid, *lambdas_initial);
+        printf("Found depth data.\n");
+        nc_get_var_float(ncid, depths_varid, *depths_initial);
+    }
+
+    // allocate memory for depths
+    *albedos_initial = (float*) malloc(
+        (*model_width) * (*model_height) * sizeof(float));
+
+    // check for lambda (could be named many diff things)
+    retval = try_read_ncvar(ncid, NC_ENOTVAR, "albedo", &albedos_varid);
+    retval = try_read_ncvar(ncid, retval, "albedos", &albedos_varid);
+    retval = try_read_ncvar(ncid, retval, "alpha", &albedos_varid);
+    retval = try_read_ncvar(ncid, retval, "alphas", &albedos_varid);
+    if (retval != NC_NOERR) {
+        printf("albedo data not found, using fallback.\n");
+        // generate a replacement
+        for (int i = 0; i < (*model_width) * (*model_height); i++) {
+            (*albedos_initial)[i] = 0.3f;
+        }
+    } else {
+        printf("Found albedo data.\n");
+        nc_get_var_float(ncid, albedos_varid, *albedos_initial);
     }
 }

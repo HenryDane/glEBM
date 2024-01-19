@@ -5,7 +5,7 @@
 
 typedef struct {
     float *lats, *lons;
-    float *Ts, *Bs, *lambdas;
+    float *Ts, *Bs, *depths, *albedos;
 } model_initial_t;
 
 // linked list time oh yeah
@@ -31,6 +31,7 @@ void model_storage_free(model_storage_t* model);
 
 void read_input(size_t* model_width, size_t* model_height,
     float** lats, float** lons,
-    float** Ts_initial, float** Bs_initial, float** lambdas_initial);
+    float** Ts_initial, float** Bs_initial, float** depths_initial,
+    float** albedos_initial);
 
 #endif

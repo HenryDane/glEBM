@@ -4,7 +4,8 @@ layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
 layout(rgba32f, binding = 0) uniform image2D stateOut;
 layout(binding = 1) uniform sampler2D insol_LUT;
-layout(binding = 2) uniform sampler2D physp_LUT;
+layout(binding = 2) uniform sampler2D physp_LUT1;
+layout(binding = 3) uniform sampler2D physp_LUT2;
 
 layout(location = 0) uniform float t;
 layout(location = 1) uniform float dt;
@@ -38,8 +39,8 @@ float calcP2(float x) {
     return 0.5 * (3 * x * x - 1.0);
 }
 
-float calc_Cval(float depth) {
-    return 4181.3 * 1.0e3 * depth;
+float calc_Cval(vec2 uv) {
+    return 4181.3 * 1.0e3 * texture(physp_LUT1, uv).a;
 }
 
 float calc_Q(float lat, float lon, float day) {
@@ -145,7 +146,7 @@ void main() {
 
     // coordinates
     float day = t; //mod(t, days_per_year);
-    vec4 physical_params = texture(physp_LUT, uv);
+    vec4 physical_params = texture(physp_LUT1, uv);
     float lat = physical_params.r;
     float lon = physical_params.g;
     float B   = physical_params.b;
@@ -161,7 +162,7 @@ void main() {
     value.b = Q;
 
     // calculate water depth
-    float C_val = calc_Cval(30.0);
+    float C_val = calc_Cval(uv);
 
     // compute temperature
     value.r += calc_Ts(alpha, Q, value.r, C_val, B) * dt * secs_per_day;

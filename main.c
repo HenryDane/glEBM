@@ -108,7 +108,8 @@ int main(int argc, char *argv[]) {
     size_t model_size_x, model_size_y;
     read_input(&model_size_x, &model_size_y,
         &initial_model.lats, &initial_model.lons,
-        &initial_model.Ts, &initial_model.Bs, &initial_model.lambdas);
+        &initial_model.Ts, &initial_model.Bs, &initial_model.depths,
+        &initial_model.albedos);
 
     model_storage_t model;
     init_model_storage(&model, 10.0f,
@@ -170,8 +171,8 @@ int main(int argc, char *argv[]) {
     unsigned int solat_LUT = make_solar_table();
 
     // create physical LUT (lat, lon, B, lambda) texture
-    unsigned int physp_LUT = make_LUT(model_size_x, model_size_y,
-        &initial_model);
+    unsigned int physp_LUT1, physp_LUT2;
+    make_LUTs(model_size_x, model_size_y, &initial_model, &physp_LUT1, &physp_LUT2);
 
     // make shaders
     unsigned int compute_shader = create_cshader("shader/compute.cs");
@@ -184,10 +185,11 @@ int main(int argc, char *argv[]) {
     unsigned int ss_mins_l = glGetUniformLocation(screen_shader, "mins");
 
     // figure out compute shader stuff
-    unsigned int css_t_l         = glGetUniformLocation(compute_shader, "t");
-    unsigned int css_dt_l        = glGetUniformLocation(compute_shader, "dt");
-    unsigned int css_insol_LUT_l = glGetUniformLocation(compute_shader, "insol_LUT");
-    unsigned int css_physp_LUT_l = glGetUniformLocation(compute_shader, "physp_LUT");
+    unsigned int css_t_l          = glGetUniformLocation(compute_shader, "t");
+    unsigned int css_dt_l         = glGetUniformLocation(compute_shader, "dt");
+    unsigned int css_insol_LUT_l  = glGetUniformLocation(compute_shader, "insol_LUT");
+    unsigned int css_physp_LUT1_l = glGetUniformLocation(compute_shader, "physp_LUT1");
+    unsigned int css_physp_LUT2_l = glGetUniformLocation(compute_shader, "physp_LUT2");
 
     // timing state info
     float currentFrame, delta, tlast = 0.0f;
@@ -203,7 +205,9 @@ int main(int argc, char *argv[]) {
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, solat_LUT);
     glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, physp_LUT);
+    glBindTexture(GL_TEXTURE_2D, physp_LUT1);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, physp_LUT2);
 
     float t = 0.0f; // in days
     float dt = model.timestep; // 5 mins
@@ -220,7 +224,8 @@ int main(int argc, char *argv[]) {
         glUniform1f(css_t_l, t);
         glUniform1f(css_dt_l, dt);
         glUniform1i(css_insol_LUT_l, 1);
-        glUniform1i(css_physp_LUT_l, 2);
+        glUniform1i(css_physp_LUT1_l, 2);
+        glUniform1i(css_physp_LUT2_l, 3);
         glDispatchCompute((unsigned int)model_size_x / 32, (unsigned int)model_size_y / 32, 1);
         t += dt;
 

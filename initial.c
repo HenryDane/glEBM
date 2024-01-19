@@ -61,30 +61,42 @@ unsigned int make_solar_table() {
     return solar_LUT;
 }
 
-unsigned int make_LUT(size_t model_width, size_t model_height,
-    model_initial_t* model) {
-    // allocate memory for LUT
-    unsigned int LUT;
-    float* data = (float*) malloc(
+void make_LUTs(size_t model_width, size_t model_height,
+    model_initial_t* model, unsigned int* LUT1, unsigned int* LUT2) {
+    // allocate memory for LUT1
+    float* data1 = (float*) malloc(
+        model_width * model_height * 4 * sizeof(float));
+        // allocate memory for LUT2
+    float* data2 = (float*) malloc(
         model_width * model_height * 4 * sizeof(float));
 
     // copy stuff over
     for (size_t i = 0; i < model_width * model_height; i++) {
-        data[(i * 4) + 0] = model->lats[i / model_width];
-        data[(i * 4) + 1] = model->lons[i % model_width];
-        data[(i * 4) + 2] = model->Bs[i];
-        data[(i * 4) + 3] = model->lambdas[i];
+        data1[(i * 4) + 0] = model->lats[i / model_width];
+        data1[(i * 4) + 1] = model->lons[i % model_width];
+        data1[(i * 4) + 2] = model->Bs[i];
+        data1[(i * 4) + 3] = model->depths[i];
+        data2[(i * 4) + 0] = model->albedos[i];
+        data2[(i * 4) + 1] = 0.0f;
+        data2[(i * 4) + 2] = 0.0f;
+        data2[(i * 4) + 3] = 0.0f;
     }
 
-    // gemerate texture
-    glGenTextures(1, &LUT);
-    glBindTexture(GL_TEXTURE_2D, LUT);
+    // gemerate textures
+    glGenTextures(1, LUT1);
+    glBindTexture(GL_TEXTURE_2D, *LUT1);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, model_width, model_height, 0,
-                 GL_RGBA, GL_FLOAT, data);
-
-    return LUT;
+                 GL_RGBA, GL_FLOAT, data1);
+    glGenTextures(1, LUT2);
+    glBindTexture(GL_TEXTURE_2D, *LUT2);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, model_width, model_height, 0,
+                 GL_RGBA, GL_FLOAT, data2);
 }
