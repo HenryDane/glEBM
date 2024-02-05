@@ -24,10 +24,6 @@ const float eps = Rd / Rv;
 // albedo parameters
 const float Tf = 263.15f;
 
-// OLR parameters
-const float olr_A = 210.0f;
-//const float olr_B =   2.0f;
-
 float deg2rad(float x) {
     return pi / 180.0f * x;
 }
@@ -37,7 +33,7 @@ float calcP2(float x) {
 }
 
 float calc_Cval(vec2 uv) {
-    return 4181.3 * 1.0e3 * texture(physp_LUT1, uv).a;
+    return 4181.3 * 1.0e3 * texture(physp_LUT2, uv).a;
 }
 
 float calc_Q(float lat, float lon, float day) {
@@ -64,10 +60,16 @@ float calc_albedo(float Ts, float lat, vec2 uv) {
     return albedo;
 }
 
-float calc_Ts(float albedo, float Q, float T_old, float C_val, float olr_B) {
-    float ASR = (1 - albedo) * Q;
-    float OLR = olr_A + (olr_B * (T_old - 273.15));
-    return (1 / C_val) * (ASR - OLR);
+float calc_OLR(float Ts, float olr_A, float olr_B) {
+    return olr_A + (olr_B * (Ts - 273.15));
+}
+
+float calc_ASR(float albedo, float Q) {
+    return (1 - albedo) * Q;
+}
+
+float calc_Ts(float ASR, float OLR, float C) {
+    return (1 / C) * (ASR - OLR);
 }
 
 vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C, float f) {
@@ -196,6 +198,7 @@ void main() {
     float lat = physical_params.r;
     float lon = physical_params.g;
     float B   = physical_params.b;
+    float A   = physical_params.a;
 
     // compute instant insolation
     float Q = calc_Q(lat, lon, day);
@@ -203,7 +206,7 @@ void main() {
     // compute albedo
     float alpha = calc_albedo(value.r, lat, uv);
 
-//    // emit albedo as a and insol as b
+    // emit albedo as a and insol as b
     value.a = alpha;
     value.b = Q;
 
@@ -211,7 +214,9 @@ void main() {
     float C_val = calc_Cval(uv);
 
     // compute temperature
-    value.r += calc_Ts(alpha, Q, value.r, C_val, B) * dt * secs_per_day;
+    float OLR = calc_OLR(value.r, A, B);
+    float ASR = calc_ASR(alpha, Q);
+    value.r += calc_Ts(ASR, OLR, C_val) * dt * secs_per_day;
 
     // compute moist ampl factor
     float f = calc_f(value.r);

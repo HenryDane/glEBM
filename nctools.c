@@ -74,7 +74,8 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     int retval;
     int ncid, lat_dimid, lat_varid, lon_dimid, lon_varid;
     int time_dimid, time_varid;
-    int Ti_varid, Bp_varid, Ts_varid, a0s_varid, a2s_varid, ais_varid, depths_varid;
+    int Ti_varid, Bp_varid, Ts_varid, a0s_varid, a2s_varid, ais_varid,
+        depths_varid, Ap_varid;
 
     // string names
     const char* lat_name     = "lat";
@@ -83,6 +84,7 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     const char* Ti_name      = "T_initial";
     const char* Ts_name      = "Ts";
     const char* Bp_name      = "param_B";
+    const char* Ap_name      = "param_A";
     const char* a0s_name     = "a0s";
     const char* a2s_name     = "a2s";
     const char* ais_name     = "ais";
@@ -92,6 +94,7 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     const char* deg_east     = "degrees_east";
     const char* units_K      = "kelvin";
     const char* units_B      = "w/m2/K";
+    const char* units_A      = "w/m2";
     const char* units_day    = "s";
     const char* units_albedo = "none";
     const char* units_m      = "m";
@@ -159,6 +162,14 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     retval = nc_put_att_text(ncid, Bp_varid, units_str, strlen(units_B), units_B);
     check_retval(retval);
 
+    // define param_A variable
+    retval = nc_def_var(ncid, Ap_name, NC_FLOAT, 2, dimid_2d, &Ap_varid);
+    check_retval(retval);
+
+    // set param_A units
+    retval = nc_put_att_text(ncid, Ap_varid, units_str, strlen(units_A), units_A);
+    check_retval(retval);
+
     // define Ts variable
     retval = nc_def_var(ncid, Ts_name, NC_FLOAT, 3, dimid_3d, &Ts_varid);
     check_retval(retval);
@@ -215,6 +226,10 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     retval = nc_put_var_float(ncid, Bp_varid, initial->Bs);
     check_retval(retval);
 
+    // write param_A
+    retval = nc_put_var_float(ncid, Ap_varid, initial->As);
+    check_retval(retval);
+
     // write depth
     retval = nc_put_var_float(ncid, depths_varid, initial->depths);
     check_retval(retval);
@@ -234,8 +249,10 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     while (model->head->next != NULL) {
         model->head = model->head->next;
 
+#ifndef REDUCED_OUTPUT
         printf("Writing frame t=%f data=0x%x\n",
             model->head->time, model->head->data);
+#endif
 
         // copy temperature data from model output
         for (size_t i = 0; i < size_y * size_x; i++) {
@@ -282,7 +299,8 @@ void read_input(size_t* model_width, size_t* model_height,
     model_initial_t* model) {
     int retval; // temporary for nc queries
     int ncid, lat_varid, lon_varid, lat_dimid, lon_dimid;
-    int Ts_varid, Bs_varid, depths_varid, a0s_varid, a2s_varid, ais_varid;
+    int Ts_varid, Bs_varid, As_varid, depths_varid, a0s_varid, a2s_varid,
+        ais_varid;
 
 //    const char* file_name = "cmip6-ensemble-mean-feedback.nc";
     const char* file_name = "input.nc";
@@ -383,6 +401,24 @@ void read_input(size_t* model_width, size_t* model_height,
     } else {
         printf("Found B parameter data.\n");
         nc_get_var_float(ncid, Bs_varid, model->Bs);
+    }
+
+    // allocate memory for A parameter
+    model->As = (float*) malloc(
+        (*model_width) * (*model_height) * sizeof(float));
+
+    // check for A parameter (could be named many diff things)
+    retval = try_read_ncvar(ncid, NC_ENOTVAR, "A", &As_varid);
+    retval = try_read_ncvar(ncid, retval, "As", &As_varid);
+    if (retval != NC_NOERR) {
+        printf("A parameter data not found, using fallback.\n");
+        // generate a replacement
+        for (int i = 0; i < (*model_width) * (*model_height); i++) {
+            model->As[i] = 210.0f;
+        }
+    } else {
+        printf("Found A parameter data.\n");
+        nc_get_var_float(ncid, As_varid, model->As);
     }
 
     // allocate memory for depths

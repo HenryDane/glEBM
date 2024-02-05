@@ -5,7 +5,7 @@
 
 typedef struct {
     float *lats, *lons;
-    float *Ts, *Bs, *depths, *a0s, *a2s, *ais;
+    float *Ts, *Bs, *depths, *a0s, *a2s, *ais, *As;
 } model_initial_t;
 
 // linked list time oh yeah

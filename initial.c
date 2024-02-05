@@ -75,11 +75,11 @@ void make_LUTs(size_t model_width, size_t model_height,
         data1[(i * 4) + 0] = model->lats[i / model_width];
         data1[(i * 4) + 1] = model->lons[i % model_width];
         data1[(i * 4) + 2] = model->Bs[i];
-        data1[(i * 4) + 3] = model->depths[i];
+        data1[(i * 4) + 3] = model->As[i];
         data2[(i * 4) + 0] = model->a0s[i];
         data2[(i * 4) + 1] = model->a2s[i];
         data2[(i * 4) + 2] = model->ais[i];
-        data2[(i * 4) + 3] = 0.0f;
+        data2[(i * 4) + 3] = model->depths[i];
     }
 
     // gemerate textures
