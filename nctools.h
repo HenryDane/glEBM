@@ -29,6 +29,7 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     model_initial_t* initial, const char* path);
 void model_storage_free(model_storage_t* model);
 
-void read_input(size_t* model_width, size_t* model_height, model_initial_t* m);
+void read_input(char* path, size_t* model_width, size_t* model_height,
+    model_initial_t* m);
 
 #endif

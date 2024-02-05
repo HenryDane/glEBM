@@ -60,6 +60,13 @@ bool is_pow2(int x) {
 }
 
 int main(int argc, char *argv[]) {
+    // verify input arguments
+    char* path;
+    if (argc != 2) {
+        printf("Useage: glEBM <input_file.nc>\n");
+        return 1;
+    }
+
     // register an error callback
     glfwSetErrorCallback(error_callback);
 
@@ -106,7 +113,7 @@ int main(int argc, char *argv[]) {
     // load netcdf4 input file
     model_initial_t initial_model;
     size_t model_size_x, model_size_y;
-    read_input(&model_size_x, &model_size_y, &initial_model);
+    read_input(argv[1], &model_size_x, &model_size_y, &initial_model);
 
     model_storage_t model;
     init_model_storage(&model, 3.0 * days_per_year,
@@ -286,4 +293,6 @@ int main(int argc, char *argv[]) {
     }
 
     glfwTerminate();
+
+    return 0;
 }

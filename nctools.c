@@ -295,19 +295,17 @@ void model_storage_free(model_storage_t* model) {
     }
 }
 
-void read_input(size_t* model_width, size_t* model_height,
+void read_input(char* path, size_t* model_width, size_t* model_height,
     model_initial_t* model) {
     int retval; // temporary for nc queries
     int ncid, lat_varid, lon_varid, lat_dimid, lon_dimid;
     int Ts_varid, Bs_varid, As_varid, depths_varid, a0s_varid, a2s_varid,
         ais_varid;
 
-//    const char* file_name = "cmip6-ensemble-mean-feedback.nc";
-    const char* file_name = "input.nc";
-    printf("Reading input file: %s\n", file_name);
+    printf("Reading input file: %s\n", path);
 
     // open the file
-    if ((retval = nc_open(file_name, NC_NOWRITE, &ncid))) {
+    if ((retval = nc_open(path, NC_NOWRITE, &ncid))) {
        abort_ncop(retval);
     }
 
