@@ -7,6 +7,7 @@
 #include "initial.h"
 #include "fetch.h"
 #include "renderutil.h"
+#include "nctools.h"
 
 // https://learnopengl.com/Guest-Articles/2022/Compute-Shaders/Introduction
 // https://medium.com/@daniel.coady/compute-shaders-in-opengl-4-3-d1c741998c03
@@ -16,14 +17,36 @@ void error_callback(int error, const char* description) {
     fprintf(stderr, "Error: %s\n", description);
 }
 
-void GLAPIENTRY messageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length,
-    const GLchar* message, const void* userParam){
-    printf("%s type=0x%04X severity=0x%04X %s\n", (type == GL_DEBUG_TYPE_ERROR ? "*** GL ERROR ***" : "*** GL INFO ***" ),
-    type, severity, message);
-
-    if (type == GL_DEBUG_TYPE_ERROR) {
-        exit(1); // commenting this makes screen sharing possible i have no idea why
+const char* get_gl_err_type_str(GLenum type) {
+    switch(type) {
+    case GL_DEBUG_TYPE_ERROR:
+        return "GL_ERROR";
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+        return "GL_DEPRECATED_BEHAVIOR";
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+        return "GL_UNDEFINED_BEHAVIOR";
+        break;
+    case GL_DEBUG_TYPE_PORTABILITY:
+        return "GL_PORTABILITY";
+    case GL_DEBUG_TYPE_PERFORMANCE:
+        return "GL_PERFORMANCE";
+    case GL_DEBUG_TYPE_OTHER:
+        return "GL_INFO";
     }
+
+    return "GL_UNKNOWN";
+}
+
+void GLAPIENTRY messageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length,
+	const GLchar* message, const void* userParam){
+
+    printf("[%s] type=%#02x severity=%#02x source=%#02x id=%#02x message: %s\n",
+        get_gl_err_type_str(type), type, severity, source, id, message);
+
+	if (type == GL_DEBUG_TYPE_ERROR) {
+		exit(-20); // commenting this makes screen sharing possible i have no idea why
+	}
+
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
@@ -37,39 +60,6 @@ bool is_pow2(int x) {
 }
 
 int main(int argc, char *argv[]) {
-    int model_size_x = DEFAULT_MODEL_WIDTH;
-    int model_size_y = DEFAULT_MODEL_HEIGHT;
-
-    // parse arguments
-    if (argc > 1){
-        char* p;
-        // require either all arguments specified, or none specified
-        if (argc != 3) {
-            printf("Usage: glEBM width height\n");
-            return 0;
-        }
-
-        model_size_x = strtol(argv[1], &p, 10);
-        if (errno == ERANGE) {
-            printf("Error: width value could not be converted to int.\n");
-            return 0;
-        }
-        if (!is_pow2(model_size_x)) {
-            printf("Error: width value must be a power of 2.\n");
-            return 0;
-        }
-
-        model_size_y = strtol(argv[2], &p, 10);
-        if (errno == ERANGE) {
-            printf("Error: height value could not be converted to int.\n");
-            return 0;
-        }
-        if (!is_pow2(model_size_y)) {
-            printf("Error: height value must be a power of 2.\n");
-            return 0;
-        }
-    }
-
     // register an error callback
     glfwSetErrorCallback(error_callback);
 
@@ -109,8 +99,18 @@ int main(int argc, char *argv[]) {
     glEnable(GL_DEBUG_OUTPUT);
     glDebugMessageCallback(messageCallback, 0);
 
+    // setup profiling data
     profile_t profldat;
     init_profile(&profldat);
+
+    // load netcdf4 input file
+    model_initial_t initial_model;
+    size_t model_size_x, model_size_y;
+    read_input(&model_size_x, &model_size_y, &initial_model);
+
+    model_storage_t model;
+    init_model_storage(&model, 3.0 * days_per_year,
+        model_size_x, model_size_y);
 
     // query limitations
     int max_compute_work_group_count[3];
@@ -167,6 +167,10 @@ int main(int argc, char *argv[]) {
     // create solar LUT texture
     unsigned int solat_LUT = make_solar_table();
 
+    // create physical LUT (lat, lon, B, lambda) texture
+    unsigned int physp_LUT1, physp_LUT2;
+    make_LUTs(model_size_x, model_size_y, &initial_model, &physp_LUT1, &physp_LUT2);
+
     // make shaders
     unsigned int compute_shader = create_cshader("shader/compute.cs");
     unsigned int screen_shader  = create_shader("shader/screen.vs", "shader/screen.fs");
@@ -178,9 +182,11 @@ int main(int argc, char *argv[]) {
     unsigned int ss_mins_l = glGetUniformLocation(screen_shader, "mins");
 
     // figure out compute shader stuff
-    unsigned int css_t_l         = glGetUniformLocation(compute_shader, "t");
-    unsigned int css_dt_l        = glGetUniformLocation(compute_shader, "dt");
-    unsigned int css_insol_LUT_l = glGetUniformLocation(compute_shader, "insol_LUT");
+    unsigned int css_t_l          = glGetUniformLocation(compute_shader, "t");
+    unsigned int css_dt_l         = glGetUniformLocation(compute_shader, "dt");
+    unsigned int css_insol_LUT_l  = glGetUniformLocation(compute_shader, "insol_LUT");
+    unsigned int css_physp_LUT1_l = glGetUniformLocation(compute_shader, "physp_LUT1");
+    unsigned int css_physp_LUT2_l = glGetUniformLocation(compute_shader, "physp_LUT2");
 
     // timing state info
     float currentFrame, delta, tlast = 0.0f;
@@ -195,11 +201,13 @@ int main(int argc, char *argv[]) {
     glBindTexture(GL_TEXTURE_2D, surf_texture);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, solat_LUT);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, physp_LUT1);
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, physp_LUT2);
 
-    float t = 0.0f;
-//    float dt = 1e-1f;
-    float dt = (1.0f / 24.0f) * (1 / 12.0f); // 5 mins
-//    float dt = (1.0f / 24.0f); // 5 mins
+    float t = 0.0f; // in days
+    float dt = model.timestep; // 5 mins
 
     // process window/graphics
     while (!glfwWindowShouldClose(window)) {
@@ -213,11 +221,10 @@ int main(int argc, char *argv[]) {
         glUniform1f(css_t_l, t);
         glUniform1f(css_dt_l, dt);
         glUniform1i(css_insol_LUT_l, 1);
+        glUniform1i(css_physp_LUT1_l, 2);
+        glUniform1i(css_physp_LUT2_l, 3);
         glDispatchCompute((unsigned int)model_size_x / 32, (unsigned int)model_size_y / 32, 1);
         t += dt;
-
-        // make sure writing to image has finished before read
-//        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
         // render image to quad
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -241,8 +248,6 @@ int main(int argc, char *argv[]) {
         // collect statistics
         if (frame_ctr % 500 == 0) {
 #ifndef REDUCED_OUTPUT
-//            printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
-//                currentFrame * speed, delta * speed * 24.0f * 60.0f, 1.0f / delta);
             if (t <= days_per_year) {
                 printf("fc=%d t=%.4f (days) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
                     t, dt * 24.0f * 60.0f, 1.0f / delta);
@@ -250,16 +255,28 @@ int main(int argc, char *argv[]) {
                 printf("fc=%d t=%.4f (yr) dt=%.4f (mins) tps=%.2f\n", frame_ctr,
                     t / days_per_year, dt * 24.0f * 60.0f, 1.0f / delta);
             }
-#else
-            printf("%.4e ", currentFrame * speed);
 #endif // REDUCED_OUTPUT
-            fetch_2d_state(surf_texture, model_size_x, model_size_y, &Tmax, &Tmin,
+            float* data = fetch_2d_state(
+                surf_texture, model_size_x, model_size_y, &Tmax, &Tmin,
                 &qmax, &qmin, &umax, &umin, &vmax, &vmin);
+            model_storage_add_frame(&model, t, data);
         }
 
-        if (t > days_per_year * 3.0) {
-            const char* path = "result.csv";
-            fetch_and_dump_state(surf_texture, model_size_x, model_size_y, path);
+        // run for 8 years
+        if (t > model.final_time) {
+            const char* path = "output.nc";
+            printf("Run complete.\nSaving results to %s...\n", path);
+            // get the data agian
+            float* data = fetch_2d_state(
+                surf_texture, model_size_x, model_size_y, &Tmax, &Tmin,
+                &qmax, &qmin, &umax, &umin, &vmax, &vmin);
+            // add it to the pile
+            model_storage_add_frame(&model, t, data);
+            // write it to disk
+            model_storage_write(model_size_x, model_size_y, &model, &initial_model, path);
+            // delete it
+            model_storage_free(&model);
+            // stop the run
             glfwSetWindowShouldClose(window, GLFW_TRUE);
             break;
         }
