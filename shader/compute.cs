@@ -70,7 +70,6 @@ float calc_Ts(float albedo, float Q, float T_old, float C_val, float olr_B) {
     return (1 / C_val) * (ASR - OLR);
 }
 
-// TODO: add zonal adv-diff
 vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C, float f) {
     const float D = 0.555;
     ivec2 imgsize = imageSize(stateOut);
@@ -93,6 +92,54 @@ vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C, float f) {
     float Wb_jp1 = cos(phi + (dphi / 2)) * float(coord.y < imgsize.y - 1);
 
     float W_i    = cos(phi);
+
+    float K_j    = D / C * Re * Re * (1 + f);
+    float K_jp1  = D / C * Re * Re * (1 + f);
+
+    float U_j    = 0;
+    float U_jp1  = 0;
+
+    float S_i    = 0;
+
+    float Tl = (Wb_j / W_i) * (K_j + U_j * (X_i - Xb_j)) / ((Xb_jp1 - Xb_j) * (X_i - X_im1));
+
+    float Tm = 0;
+    Tm -= (Wb_jp1 * (K_jp1 + U_jp1 * (X_ip1 - Xb_jp1))) / (W_i * (Xb_jp1 - Xb_j) * (X_ip1 - X_i  ));
+    Tm -= (Wb_j   * (K_j   - U_j   * (Xb_j  - X_im1 ))) / (W_i * (Xb_jp1 - Xb_j) * (X_i   - X_im1));
+
+    float Tu = (Wb_jp1 / W_i) * (K_jp1 - U_jp1 * (Xb_jp1 - X_i)) / ((Xb_jp1 - Xb_j) * (X_ip1 - X_i));
+
+    return (Tl * N_im1 + Tm * N + Tu * N_ip1) + S_i;
+}
+
+vec4 calc_zonal_advdiff(vec4 N, ivec2 coord, float lon, float C, float f) {
+    const float D = 0.555;
+    ivec2 imgsize = imageSize(stateOut);
+
+    float phi = deg2rad(lon);
+    float dphi = (2 * pi) / float(gl_NumWorkGroups.x * gl_WorkGroupSize.x);
+    float dy = Re * dphi;
+
+    ivec2 com1   = coord + ivec2(-1, 0) + imgsize;
+    com1.x = com1.x % imgsize.x;
+    com1.y = com1.y % imgsize.y;
+    ivec2 cop1   = coord + ivec2( 1, 0) + imgsize;
+    cop1.x = cop1.x % imgsize.x;
+    cop1.y = cop1.y % imgsize.y;
+    vec4 N_im1   = imageLoad(stateOut, com1);
+    vec4 N_ip1   = imageLoad(stateOut, cop1);
+
+    float X_i    = phi * Re;
+    float X_ip1  = X_i + dy;
+    float X_im1  = X_i - dy;
+
+    float Xb_j   = X_i - (dy / 2);
+    float Xb_jp1 = X_i + (dy / 2);
+
+    float Wb_j   = 1.0f;
+    float Wb_jp1 = 1.0f;
+
+    float W_i    = 1.0f;
 
     float K_j    = D / C * Re * Re * (1 + f);
     float K_jp1  = D / C * Re * Re * (1 + f);
@@ -170,9 +217,10 @@ void main() {
     float f = calc_f(value.r);
 
     // adv diff
-    float dTdt = calc_merid_advdiff(value, texelCoord, lat, C_val, f).r;
-    value.g = dTdt;
-    value.r += dTdt * dt * secs_per_day;
+    float dTdt_merid = calc_merid_advdiff(value, texelCoord, lat, C_val, f).r;
+    float dTdt_zonal = calc_zonal_advdiff(value, texelCoord, lon, C_val, f).r;
+    value.g = dTdt_merid + dTdt_zonal;
+    value.r += (dTdt_merid + dTdt_zonal) * dt * secs_per_day;
 
     imageStore(stateOut, texelCoord, value);
 }

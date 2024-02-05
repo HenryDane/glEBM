@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
     read_input(&model_size_x, &model_size_y, &initial_model);
 
     model_storage_t model;
-    init_model_storage(&model, 10.0f,
+    init_model_storage(&model, 3.0 * days_per_year,
         model_size_x, model_size_y);
 
     // query limitations

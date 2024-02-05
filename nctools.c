@@ -234,7 +234,7 @@ void model_storage_write(int size_x, int size_y, model_storage_t* model,
     while (model->head->next != NULL) {
         model->head = model->head->next;
 
-        printf("Writing frame t=%f data=%x\n",
+        printf("Writing frame t=%f data=0x%x\n",
             model->head->time, model->head->data);
 
         // copy temperature data from model output
