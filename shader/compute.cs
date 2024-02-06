@@ -19,6 +19,8 @@ const float Rd            =   287.0;
 const float Rv            =   461.5;
 const float Lh_vap        =     2.5e6;
 const float gas_cp        =  1004.0;
+const float RH            =     0.8f;
+const float P_surf        =  1000.0;
 const float eps = Rd / Rv;
 
 // albedo parameters
@@ -114,8 +116,7 @@ vec4 calc_merid_advdiff(vec4 N, ivec2 coord, float lat, float C, float f) {
     return (Tl * N_im1 + Tm * N + Tu * N_ip1) + S_i;
 }
 
-vec4 calc_zonal_advdiff(vec4 N, ivec2 coord, float lon, float C, float f) {
-    const float D = 0.555;
+vec4 calc_zonal_advdiff(vec4 N, ivec2 coord, float lon, float C, float D) {
     ivec2 imgsize = imageSize(stateOut);
 
     float phi = deg2rad(lon);
@@ -143,8 +144,8 @@ vec4 calc_zonal_advdiff(vec4 N, ivec2 coord, float lon, float C, float f) {
 
     float W_i    = 1.0f;
 
-    float K_j    = D / C * Re * Re * (1 + f);
-    float K_jp1  = D / C * Re * Re * (1 + f);
+    float K_j    = D / C * Re * Re;
+    float K_jp1  = D / C * Re * Re;
 
     float U_j    = 0;
     float U_jp1  = 0;
@@ -174,14 +175,44 @@ float calc_qsat(float T, float P) {
     return eps * es / (P - (1 - eps) * es);
 }
 
-float calc_f(float T) {
-    // could be an input later
-    const float RH     = 0.8f;
+float calc_dqsdTs(float T) {
     const float deltaT = 0.01;
+    return (calc_qsat(T + deltaT / 2.0f, P_surf) - calc_qsat(T - deltaT / 2.0f, P_surf)) / deltaT;
+}
 
-    float dqsdTs = (calc_qsat(T + deltaT / 2.0f, 1000.0) - calc_qsat(T - deltaT / 2.0f, 1000.0)) / deltaT;
-
+float calc_f(float T) {
+    float dqsdTs = calc_dqsdTs(T);
     return Lh_vap * RH * dqsdTs / gas_cp;
+}
+
+float calc_cm02_D(float T0) {
+    // Chang & Merlis (2023) eqn (2)
+    const float D_bar  = 0.3; // 0.3 W/m2/K
+    const float gamma  = 0.03; // 3.0 %/K
+    // pulled 10C out of my pocket
+    // TODO: how is this supposed to be calculated?
+    const float T0_bar = 283.15;
+
+    return D_bar * (1 + gamma * (T0 - T0_bar));
+}
+
+float calc_cm03_D(float T2, float h2) {
+    // Chang & Merlis (2023) eqn (3)
+    const float D_bar  = 0.3; // 0.3 W/m2/K
+    const float T2_bar = -29.3; // -29.3 K
+    const float h2_bar = -65.4; // -65.4 K
+    const float n      = 3.0 / 2.0; // see section 4
+    const float m      = 3.0 / 2.0; // see section 4
+
+    return D_bar * pow(T2 / T2_bar, n) * pow(h2 / h2_bar, m);
+}
+
+float calc_h(float T) {
+    // Chang & Merlis (2023) eqn (4)
+    const float T0 = 273.15; // ???
+    const float deltaT = 0.01;
+    float dqsdTs = (calc_qsat(T0 + deltaT / 2.0f, 1000.0) - calc_qsat(T0 - deltaT / 2.0f, 1000.0)) / deltaT;
+    return T + (Lh_vap * RH / gas_cp) * (calc_qsat(T0, P_surf) + dqsdTs * (T - T0));
 }
 
 void main() {
@@ -221,9 +252,12 @@ void main() {
     // compute moist ampl factor
     float f = calc_f(value.r);
 
+    // default diffusivity
+    float D = 0.555 * (1 + f);
+
     // adv diff
-    float dTdt_merid = calc_merid_advdiff(value, texelCoord, lat, C_val, f).r;
-    float dTdt_zonal = calc_zonal_advdiff(value, texelCoord, lon, C_val, f).r;
+    float dTdt_merid = calc_merid_advdiff(value, texelCoord, lat, C_val, D).r;
+    float dTdt_zonal = calc_zonal_advdiff(value, texelCoord, lon, C_val, D).r;
     value.g = dTdt_merid + dTdt_zonal;
     value.r += (dTdt_merid + dTdt_zonal) * dt * secs_per_day;
 
