@@ -10,3 +10,5 @@ bin/*
 build/*
 climlab*
 results/*
+objects/*
+glEBM
