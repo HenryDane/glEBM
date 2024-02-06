@@ -62,8 +62,8 @@ bool is_pow2(int x) {
 int main(int argc, char *argv[]) {
     // verify input arguments
     char* path;
-    if (argc != 2) {
-        printf("Useage: glEBM <input_file.nc>\n");
+    if (argc != 3) {
+        printf("Useage: glEBM <input_file.nc> <output_file.nc>\n");
         return 1;
     }
 
@@ -271,7 +271,6 @@ int main(int argc, char *argv[]) {
 
         // run for 8 years
         if (t > model.final_time) {
-            const char* path = "output.nc";
             printf("Run complete.\nSaving results to %s...\n", path);
             // get the data agian
             float* data = fetch_2d_state(
@@ -280,7 +279,7 @@ int main(int argc, char *argv[]) {
             // add it to the pile
             model_storage_add_frame(&model, t, data);
             // write it to disk
-            model_storage_write(model_size_x, model_size_y, &model, &initial_model, path);
+            model_storage_write(model_size_x, model_size_y, &model, &initial_model, argv[2]);
             // delete it
             model_storage_free(&model);
             // stop the run
